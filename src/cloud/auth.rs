@@ -8,6 +8,7 @@ use fs_err as fs;
 use tokio::time::sleep;
 
 use crate::branding::BRANDING_CLOUD;
+use crate::browser::open_link;
 use crate::cloud::client::{
     cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse,
 };
@@ -78,13 +79,11 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
     } = client
         .post("auth/sessions/", &HashMap::from([("type", "CLI")]))
         .await?;
-    let link = client.api_endpoint.join(&auth_url)?.to_string();
-    log::debug!("Opening URL in browser: {}", link);
-    if open::that(&link).is_ok() {
-        print::prompt("Page to complete authentication now open in your browser.");
-    } else {
-        print::prompt("Please paste this link into your browser to complete authentication:");
-        print::success_msg("Link", link);
+    {
+        let link = client.api_endpoint.join(&auth_url)?.to_string();
+        let success_prompt = "Complete the authentication process now open in your browser";
+        let error_prompt = "Please paste this link into your browser to complete authentication:";
+        open_link(&link, Some(&success_prompt), Some(&error_prompt));
     }
     let deadline = Instant::now() + AUTHENTICATION_WAIT_TIME;
     while Instant::now() < deadline {

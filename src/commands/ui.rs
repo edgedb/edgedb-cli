@@ -3,6 +3,7 @@ use std::io::{stdout, Write};
 use anyhow::Context;
 
 use crate::branding::{BRANDING, BRANDING_CLI_CMD};
+use crate::browser::open_link;
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
@@ -29,20 +30,11 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
             .expect("stdout write succeeds");
         Ok(())
     } else {
-        match open::that(&url) {
-            Ok(_) => {
-                print::success!("Opening URL in browser:");
-                println!("{url}");
-                Ok(())
-            }
-            Err(e) => {
-                print::error!("Cannot launch browser: {e:#}");
-                print::prompt(
-                    "Please paste the URL below into your browser to launch the {BRANDING} UI:",
-                );
-                println!("{url}");
-                Err(ExitCode::new(1).into())
-            }
+        let error_prompt =
+            format!("Please paste the URL below into your browser to launch the {BRANDING} UI:");
+        match open_link(&url, None, Some(&error_prompt)) {
+            true => Ok(()),
+            false => Err(ExitCode::new(1).into()),
         }
     }
 }
