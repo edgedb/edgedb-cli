@@ -15,6 +15,7 @@ mod analyze;
 mod async_util;
 mod branch;
 mod branding;
+mod browser;
 mod bug;
 mod classify;
 pub(crate) mod cli;
