@@ -136,6 +136,7 @@ pub fn binary_path() -> anyhow::Result<PathBuf> {
     Ok(dir.join(BRANDING_CLI_CMD_FILE))
 }
 
+#[allow(dead_code)]
 pub fn is_legacy_schema_file(filename: &str) -> bool {
     filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_ESDL}"))
 }
