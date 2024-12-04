@@ -49,7 +49,11 @@ pub const BRANDING_SCHEMA_FILE_EXT: &str = if cfg!(feature = "gel") {
 pub const BRANDING_WSL: &str = "EdgeDB.WSL.1";
 
 /// The display name for the configuration file.
-pub const CONFIG_FILE_DISPLAY_NAME: &str = "`gel.toml` (or `edgedb.toml`)";
+pub const CONFIG_FILE_DISPLAY_NAME: &str = if cfg!(feature = "gel") {
+    "`gel.toml` (or `edgedb.toml`)"
+} else {
+    "`edgedb.toml`"
+};
 
 /// The default query tag for server statistics.
 pub const QUERY_TAG: &str = "gel/cli";
