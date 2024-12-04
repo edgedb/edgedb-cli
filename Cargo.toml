@@ -17,6 +17,7 @@ name = "edgedb"
 path = "src/main.rs"
 
 [features]
+default = ["gel"]
 dev_mode = []
 github_action_install = []
 github_nightly = []
