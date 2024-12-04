@@ -281,13 +281,13 @@ async fn gen_start_migration(ctx: &Context) -> anyhow::Result<(String, SourceMap
             && item.file_type().await?.is_file()
         {
             paths.push(item.path());
-            if is_legacy_schema_file(&lossy_name) {
+            if cfg!(feature = "gel") && is_legacy_schema_file(&lossy_name) {
                 has_legacy_paths = true;
             }
         }
     }
 
-    if has_legacy_paths {
+    if cfg!(feature = "gel") && has_legacy_paths {
         print::warn!(
             "Legacy schema file extension '.esdl' detected. Consider renaming them to '.gel'."
         );
