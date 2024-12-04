@@ -34,6 +34,12 @@ mod interactive;
 
 mod help;
 
+pub const BRANDING_CLI_CMD: &str = if cfg!(feature = "gel") {
+    "gel"
+} else {
+    "edgedb"
+};
+
 fn edgedb_cli_cmd() -> assert_cmd::Command {
     let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
 

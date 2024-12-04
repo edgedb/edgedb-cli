@@ -1,4 +1,4 @@
-use crate::{rm_migration_files, SERVER};
+use crate::{rm_migration_files, BRANDING_CLI_CMD, SERVER};
 use predicates::boolean::PredicateBooleanExt;
 use predicates::str::{contains, ends_with};
 use std::fs;
@@ -22,7 +22,9 @@ fn bare_status() {
         .assert()
         .code(2)
         .stderr(contains("CREATE PROPERTY field1"))
-        .stderr(contains("edgedb error: Some migrations are missing"));
+        .stderr(contains(format!(
+            "{BRANDING_CLI_CMD} error: Some migrations are missing"
+        )));
 }
 
 #[test]
@@ -44,10 +46,10 @@ fn initial() {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert()
         .code(3)
-        .stderr(ends_with(
-            "edgedb error: Database is empty, while 1 migrations \
-            have been found in the filesystem.\n  Run `edgedb migrate` to apply.\n",
-        ));
+        .stderr(ends_with(format!(
+            "{BRANDING_CLI_CMD} error: Database is empty, while 1 migrations \
+            have been found in the filesystem.\n  Run `{BRANDING_CLI_CMD} migrate` to apply.\n"
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=initial")
@@ -65,12 +67,12 @@ fn initial() {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert()
         .code(1)
-        .stderr(ends_with(
-            "edgedb error: Database must be updated \
+        .stderr(ends_with(format!(
+            "{BRANDING_CLI_CMD} error: Database must be updated \
             to the last migration on the filesystem for `migration create`. \
             Run:\n  \
-              edgedb migrate\n",
-        ));
+              {BRANDING_CLI_CMD} migrate\n",
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=initial")
@@ -276,10 +278,10 @@ fn project() {
         .current_dir("tests/migrations/db1/project")
         .assert()
         .code(3)
-        .stderr(ends_with(
-            "edgedb error: Database is empty, while 1 migrations \
-            have been found in the filesystem.\n  Run `edgedb migrate` to apply.\n",
-        ));
+        .stderr(ends_with(format!(
+            "{BRANDING_CLI_CMD} error: Database is empty, while 1 migrations \
+            have been found in the filesystem.\n  Run `{BRANDING_CLI_CMD} migrate` to apply.\n",
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=project")
@@ -297,12 +299,12 @@ fn project() {
         .current_dir("tests/migrations/db1/project")
         .assert()
         .code(1)
-        .stderr(ends_with(
-            "edgedb error: Database must be updated \
+        .stderr(ends_with(format!(
+            "{BRANDING_CLI_CMD} error: Database must be updated \
             to the last migration on the filesystem for `migration create`. \
             Run:\n  \
-              edgedb migrate\n",
-        ));
+              {BRANDING_CLI_CMD} migrate\n",
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=project")
@@ -497,10 +499,10 @@ fn modified1() {
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert()
         .code(3)
-        .stderr(ends_with(
-            "edgedb error: Database is empty, while 1 migrations \
-            have been found in the filesystem.\n  Run `edgedb migrate` to apply.\n",
-        ));
+        .stderr(ends_with(format!(
+            "{BRANDING_CLI_CMD} error: Database is empty, while 1 migrations \
+            have been found in the filesystem.\n  Run `{BRANDING_CLI_CMD} migrate` to apply.\n",
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=modified1")
@@ -510,12 +512,12 @@ fn modified1() {
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert()
         .code(1)
-        .stderr(ends_with(
-            "edgedb error: Database must be updated \
+        .stderr(ends_with(format!(
+            "{BRANDING_CLI_CMD} error: Database must be updated \
             to the last migration on the filesystem for `migration create`. \
             Run:\n  \
-              edgedb migrate\n",
-        ));
+              {BRANDING_CLI_CMD} migrate\n",
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=modified1")
@@ -537,7 +539,9 @@ fn modified1() {
         .assert()
         .code(2)
         .stderr(contains("CREATE PROPERTY field2"))
-        .stderr(contains("edgedb error: Some migrations are missing"));
+        .stderr(contains(format!(
+            "{BRANDING_CLI_CMD} error: Some migrations are missing"
+        )));
     SERVER
         .admin_cmd()
         .arg("--branch=modified1")
@@ -785,7 +789,7 @@ fn extract01() {
         .failure()
         .stderr(
             contains("Writing")
-                .and(contains("edgedb error: Cannot write"))
+                .and(contains(format!("{BRANDING_CLI_CMD} error: Cannot write")))
                 .and(contains("\n  Caused by: failed to copy file from"))
                 .and(contains("\n  Caused by: Permission denied")),
         );
@@ -801,7 +805,8 @@ fn error() {
         .assert()
         .success();
     let err = if SERVER.0.version_major >= 6 {
-        r###"error: Unexpected keyword 'CREATE'
+        format!(
+            r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
 3 │         create property text -> str;
@@ -809,10 +814,12 @@ fn error() {
   │
   = This name is a reserved keyword and cannot be used as an identifier
 
-edgedb error: cannot proceed until schema files are fixed
+{BRANDING_CLI_CMD} error: cannot proceed until schema files are fixed
 "###
+        )
     } else if SERVER.0.version_major >= 4 {
-        r###"error: Unexpected keyword 'CREATE'
+        format!(
+            r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
 3 │         create property text -> str;
@@ -820,17 +827,20 @@ edgedb error: cannot proceed until schema files are fixed
   │
   = This name is a reserved keyword and cannot be used as an identifier
 
-edgedb error: cannot proceed until .esdl files are fixed
+{BRANDING_CLI_CMD} error: cannot proceed until .esdl files are fixed
 "###
+        )
     } else {
-        r###"error: Unexpected keyword 'CREATE'
+        format!(
+            r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
 3 │         create property text -> str;
   │         ^^^^^^ error
 
-edgedb error: cannot proceed until .esdl files are fixed
+{BRANDING_CLI_CMD} error: cannot proceed until .esdl files are fixed
 "###
+        )
     };
     SERVER
         .admin_cmd()
@@ -1083,7 +1093,8 @@ fn input_required() {
 #[test]
 fn eof_err() {
     let err = if SERVER.0.version_major >= 6 {
-        r###"error: Missing '{'
+        format!(
+            r###"error: Missing '{{'
    ┌─ tests/migrations/db_eof_err/default.esdl:9:19
    │  
  9 │   alias default::Foo
@@ -1091,10 +1102,12 @@ fn eof_err() {
 10 │ │ 
    │ ╰^ error
 
-edgedb error: cannot proceed until schema files are fixed
+{BRANDING_CLI_CMD} error: cannot proceed until schema files are fixed
 "###
+        )
     } else {
-        r###"error: Missing '{'
+        format!(
+            r###"error: Missing '{{'
    ┌─ tests/migrations/db_eof_err/default.esdl:9:19
    │  
  9 │   alias default::Foo
@@ -1102,8 +1115,9 @@ edgedb error: cannot proceed until schema files are fixed
 10 │ │ 
    │ ╰^ error
 
-edgedb error: cannot proceed until .esdl files are fixed
+{BRANDING_CLI_CMD} error: cannot proceed until .esdl files are fixed
 "###
+        )
     };
     SERVER
         .admin_cmd()
