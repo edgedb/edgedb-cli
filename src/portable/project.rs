@@ -304,7 +304,11 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             .project_dir
             .clone()
             .unwrap_or_else(|| env::current_dir().unwrap());
-        let config_path = dir.join(PROJECT_FILES[0]);
+        let config_path = dir.join(if cfg!(feature = "gel") {
+            PROJECT_FILES[0]
+        } else {
+            PROJECT_FILES[1]
+        });
         init_new(options, &dir, config_path, opts)?;
         return Ok(());
     };
