@@ -22,7 +22,7 @@ use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{generate_password, password_hash};
-use crate::portable::ver::Build;
+use crate::portable::ver::Specific;
 use crate::portable::{linux, macos, windows};
 use crate::print::{self, err_marker, msg, Highlight};
 use crate::process;
@@ -447,7 +447,7 @@ pub fn bootstrap(
     let script = bootstrap_script(
         user,
         &password,
-        if info.get_version()? >= &Build::from_str("6.0-alpha.2+8fb3f01").unwrap() {
+        if info.get_version()?.specific() >= Specific::from_str("6.0-alpha.2").unwrap() {
             "admin"
         } else {
             "edgedb"
