@@ -410,6 +410,14 @@ pub fn get_default_branch_name(version: &Specific) -> String {
     String::from("edgedb")
 }
 
+pub fn get_default_user_name(version: &Specific) -> &'static str {
+    if version.major >= 6 {
+        "admin"
+    } else {
+        "edgedb"
+    }
+}
+
 pub fn get_default_branch_or_database(version: &Specific, project_dir: &Path) -> String {
     if version.major >= 5 {
         return String::from("main");
@@ -818,7 +826,7 @@ fn do_init(
                 },
                 port: Some(port),
                 start_conf: None,
-                default_user: "edgedb".into(),
+                default_user: None,
                 non_interactive: true,
                 cloud_opts: options.cloud_opts.clone(),
                 default_branch: Some(database.to_string()),
@@ -835,12 +843,18 @@ fn do_init(
         InstanceKind::Wsl(WslInfo {})
     } else {
         let inst = install::package(pkg).context(concatcp!("error installing ", BRANDING))?;
+        let version = inst.version.specific();
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "admin", database)?;
+        create::bootstrap(
+            &paths,
+            &info,
+            get_default_user_name(&version),
+            database,
+        )?;
         match create::create_service(&info) {
             Ok(()) => {}
             Err(e) => {

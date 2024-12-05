@@ -28,7 +28,7 @@ use crate::print::{self, err_marker, msg, Highlight};
 use crate::process;
 use crate::question;
 
-use crate::portable::project::get_default_branch_name;
+use crate::portable::project::{get_default_branch_name, get_default_user_name};
 use edgedb_tokio::credentials::Credentials;
 
 fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<InstanceName> {
@@ -171,7 +171,9 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         bootstrap(
             &paths,
             &info,
-            &cmd.default_user,
+            cmd.default_user
+                .as_deref()
+                .unwrap_or_else(|| get_default_user_name(specific_version)),
             &cmd.default_branch
                 .clone()
                 .unwrap_or_else(|| get_default_branch_name(specific_version)),

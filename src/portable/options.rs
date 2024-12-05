@@ -335,9 +335,10 @@ pub struct Create {
     pub start_conf: Option<StartConf>,
 
     /// Default user name (created during initialization and saved in
-    /// credentials file).
-    #[arg(long, default_value = "admin")]
-    pub default_user: String,
+    /// credentials file). This defaults to 'admin' on EdgeDB >=6.x; otherwise
+    /// 'edgedb' is used.
+    #[arg(long)]
+    pub default_user: Option<String>,
 
     /// The default branch name. This defaults to 'main' on EdgeDB >=5.x; otherwise
     /// 'edgedb' is used.
