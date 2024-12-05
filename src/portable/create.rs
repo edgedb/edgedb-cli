@@ -442,10 +442,14 @@ pub fn bootstrap(
     fs::create_dir_all(&tmp_data).with_context(|| format!("creating {:?}", &tmp_data))?;
 
     let password = generate_password();
+    let version = info.get_version()?;
     let script = bootstrap_script(
         user,
         &password,
-        if info.get_version()? >= &Build::from_str("6.0-dev.9024+4b89273").unwrap() {
+        if &Build::from_str("6.0-alpha.2+8fb3f01").unwrap() <= version
+            && version < &Build::from_str("6.0-dev.8321+d6c575a").unwrap()  // lowest nightly
+            || version >= &Build::from_str("6.0-dev.9024+4b89273").unwrap()  // first "admin"
+        {
             "admin"
         } else {
             "edgedb"
