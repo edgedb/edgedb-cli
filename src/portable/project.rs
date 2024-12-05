@@ -849,12 +849,7 @@ fn do_init(
             installation: Some(inst),
             port,
         };
-        create::bootstrap(
-            &paths,
-            &info,
-            get_default_user_name(&version),
-            database,
-        )?;
+        create::bootstrap(&paths, &info, get_default_user_name(&version), database)?;
         match create::create_service(&info) {
             Ok(()) => {}
             Err(e) => {
