@@ -7,7 +7,10 @@ use fn_error_context::context;
 
 use color_print::cformat;
 
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
+use crate::branding::{
+    BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, BRANDING_DEFAULT_USERNAME,
+    BRANDING_DEFAULT_USERNAME_LEGACY,
+};
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -22,13 +25,13 @@ use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{generate_password, password_hash};
-use crate::portable::ver::Build;
+use crate::portable::ver::Specific;
 use crate::portable::{linux, macos, windows};
 use crate::print::{self, err_marker, msg, Highlight};
 use crate::process;
 use crate::question;
 
-use crate::portable::project::get_default_branch_name;
+use crate::portable::project::{get_default_branch_name, get_default_user_name};
 use edgedb_tokio::credentials::Credentials;
 
 fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<InstanceName> {
@@ -171,7 +174,9 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         bootstrap(
             &paths,
             &info,
-            &cmd.default_user,
+            cmd.default_user
+                .as_deref()
+                .unwrap_or_else(|| get_default_user_name(specific_version)),
             &cmd.default_branch
                 .clone()
                 .unwrap_or_else(|| get_default_branch_name(specific_version)),
@@ -445,10 +450,11 @@ pub fn bootstrap(
     let script = bootstrap_script(
         user,
         &password,
-        if info.get_version()? >= &Build::from_str("6.0-dev.9024+4b89273").unwrap() {
-            "admin"
+        // This is the user included in the server. It changed since 6.0-alpha.2.
+        if info.get_version()?.specific() >= Specific::from_str("6.0-alpha.2").unwrap() {
+            BRANDING_DEFAULT_USERNAME
         } else {
-            "edgedb"
+            BRANDING_DEFAULT_USERNAME_LEGACY
         },
     );
 
