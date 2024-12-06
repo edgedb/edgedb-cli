@@ -23,6 +23,7 @@ use crate::branding::QUERY_TAG;
 use crate::branding::{
     BRANDING, BRANDING_CLI_CMD, BRANDING_SCHEMA_FILE_EXT, CONFIG_FILE_DISPLAY_NAME,
 };
+use crate::branding::{BRANDING_DEFAULT_USERNAME, BRANDING_DEFAULT_USERNAME_LEGACY};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -408,6 +409,14 @@ pub fn get_default_branch_name(version: &Specific) -> String {
     }
 
     String::from("edgedb")
+}
+
+pub fn get_default_user_name(version: &Specific) -> &'static str {
+    if version.major >= 6 {
+        BRANDING_DEFAULT_USERNAME
+    } else {
+        BRANDING_DEFAULT_USERNAME_LEGACY
+    }
 }
 
 pub fn get_default_branch_or_database(version: &Specific, project_dir: &Path) -> String {
@@ -818,7 +827,7 @@ fn do_init(
                 },
                 port: Some(port),
                 start_conf: None,
-                default_user: "edgedb".into(),
+                default_user: None,
                 non_interactive: true,
                 cloud_opts: options.cloud_opts.clone(),
                 default_branch: Some(database.to_string()),
@@ -835,12 +844,13 @@ fn do_init(
         InstanceKind::Wsl(WslInfo {})
     } else {
         let inst = install::package(pkg).context(concatcp!("error installing ", BRANDING))?;
+        let version = inst.version.specific();
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "admin", database)?;
+        create::bootstrap(&paths, &info, get_default_user_name(&version), database)?;
         match create::create_service(&info) {
             Ok(()) => {}
             Err(e) => {
