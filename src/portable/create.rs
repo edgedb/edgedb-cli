@@ -7,7 +7,10 @@ use fn_error_context::context;
 
 use color_print::cformat;
 
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
+use crate::branding::{
+    BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, BRANDING_DEFAULT_USERNAME,
+    BRANDING_DEFAULT_USERNAME_LEGACY,
+};
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -447,10 +450,11 @@ pub fn bootstrap(
     let script = bootstrap_script(
         user,
         &password,
+        // This is the user included in the server. It changed since 6.0-alpha.2.
         if info.get_version()?.specific() >= Specific::from_str("6.0-alpha.2").unwrap() {
-            "admin"
+            BRANDING_DEFAULT_USERNAME
         } else {
-            "edgedb"
+            BRANDING_DEFAULT_USERNAME_LEGACY
         },
     );
 

@@ -58,3 +58,7 @@ pub const CONFIG_FILE_DISPLAY_NAME: &str = if cfg!(feature = "gel") {
 /// The default query tag for server statistics.
 pub const QUERY_TAG: &str = "gel/cli";
 pub const REPL_QUERY_TAG: &str = "gel/repl";
+
+/// The default name of the database user bootstrapped in a new instance.
+pub const BRANDING_DEFAULT_USERNAME: &str = "admin";
+pub const BRANDING_DEFAULT_USERNAME_LEGACY: &str = "edgedb";

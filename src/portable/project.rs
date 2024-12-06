@@ -23,6 +23,7 @@ use crate::branding::QUERY_TAG;
 use crate::branding::{
     BRANDING, BRANDING_CLI_CMD, BRANDING_SCHEMA_FILE_EXT, CONFIG_FILE_DISPLAY_NAME,
 };
+use crate::branding::{BRANDING_DEFAULT_USERNAME, BRANDING_DEFAULT_USERNAME_LEGACY};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -412,9 +413,9 @@ pub fn get_default_branch_name(version: &Specific) -> String {
 
 pub fn get_default_user_name(version: &Specific) -> &'static str {
     if version.major >= 6 {
-        "admin"
+        BRANDING_DEFAULT_USERNAME
     } else {
-        "edgedb"
+        BRANDING_DEFAULT_USERNAME_LEGACY
     }
 }
 
