@@ -50,6 +50,10 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         | Set(_)
         | Tuple(_)
         | Range {..}
+        | PostGisGeometry {..}
+        | PostGisGeography {..}
+        | PostGisBox2d {..}
+        | PostGisBox3d {..}
         => {
             Err(anyhow::anyhow!(
                 "Complex objects like {:?} cannot be printed tab-separated",
