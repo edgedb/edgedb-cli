@@ -6,6 +6,7 @@ use std::task;
 
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
+use nom::AsBytes;
 use tokio_stream::Stream;
 
 use crate::print::native::FormatExt;
@@ -577,5 +578,151 @@ fn json() {
     }
   }
 ]"###
+    );
+}
+
+#[test]
+fn postgis_geometry() {
+    assert_eq!(
+        test_format(&[Value::PostGisGeometry(
+            /*
+             * Point
+             * 01 - byteOrder, Little Endian
+             * 01000000 - wkbType, WKBPoint
+             * 0000000000000040 - x, 2.0
+             * 000000000000F03F - y, 1.0
+             */
+            b"\
+            \x01\
+            \x01\x00\x00\x00\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            "[..]
+                .into()
+        ),],)
+        .unwrap(),
+        r###"{POINT(2 1)}"###
+    );
+}
+
+#[test]
+fn postgis_geography() {
+    assert_eq!(
+        test_format(&[Value::PostGisGeography(
+            /*
+             * Point
+             * 01 - byteOrder, Little Endian
+             * 01000000 - wkbType, WKBPoint
+             * 0000000000000040 - x, 2.0
+             * 000000000000F03F - y, 1.0
+             */
+            b"\
+            \x01\
+            \x01\x00\x00\x00\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            "[..]
+                .into(),
+        ),],)
+        .unwrap(),
+        r###"{POINT(2 1)}"###
+    );
+}
+
+#[test]
+fn postgis_box_2d() {
+    assert_eq!(
+        test_format(&[Value::PostGisBox2d(
+            /*
+             * Polygon
+             * 01 - byteOrder, Little Endian
+             * 03000000 - wkbType, wkbPolygon
+             * 01000000 - numRings, 1
+             * 05000000 - numPoints, 5
+             * 000000000000F03F - x, 1.0
+             * 000000000000F03F - y, 1.0
+             * 0000000000000040 - x, 2.0
+             * 000000000000F03F - y, 1.0
+             * 0000000000000040 - x, 2.0
+             * 0000000000000040 - y, 2.0
+             * 000000000000F03F - x, 1.0
+             * 0000000000000040 - y, 2.0
+             * 000000000000F03F - x, 1.0
+             * 000000000000F03F - y, 1.0
+             */
+            b"\
+            \x01\
+            \x03\x00\x00\x00\
+            \x01\x00\x00\x00\
+            \x05\x00\x00\x00\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            "[..]
+                .into(),
+        ),],)
+        .unwrap(),
+        r###"{POLYGON((1 1,2 1,2 2,1 2,1 1))}"###
+    );
+}
+
+#[test]
+fn postgis_box_3d() {
+    assert_eq!(
+        test_format(&[Value::PostGisBox2d(
+            /*
+             * Polygon
+             * 01 - byteOrder, Little Endian
+             * 03000080 - wkbType, wkbPolygonZ
+             * 01000000 - numRings, 1
+             * 05000000 - numPoints, 5
+             * 000000000000F03F - x, 1.0
+             * 000000000000F03F - y, 1.0
+             * 0000000000000000 - z, 0.0
+             * 0000000000000040 - x, 2.0
+             * 000000000000F03F - y, 1.0
+             * 0000000000000000 - z, 0.0
+             * 0000000000000040 - x, 2.0
+             * 0000000000000040 - y, 2.0
+             * 0000000000000000 - z, 0.0
+             * 000000000000F03F - x, 1.0
+             * 0000000000000040 - y, 2.0
+             * 0000000000000000 - z, 0.0
+             * 000000000000F03F - x, 1.0
+             * 000000000000F03F - y, 1.0
+             * 0000000000000000 - z, 0.0
+             */
+            b"\
+            \x01\
+            \x03\x00\x00\x80\
+            \x01\x00\x00\x00\
+            \x05\x00\x00\x00\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x08\x40\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x08\x40\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\x08\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x00\x40\
+            \x00\x00\x00\x00\x00\x00\x08\x40\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\xF0\x3F\
+            \x00\x00\x00\x00\x00\x00\x08\x40\
+            "[..]
+                .into(),
+        ),],)
+        .unwrap(),
+        r###"{POLYGON((1 1 3,2 1 3,2 2 3,1 2 3,1 1 3))}"###
     );
 }
