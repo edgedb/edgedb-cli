@@ -7,6 +7,7 @@ use crate::print::buffer::Result;
 use crate::print::formatter::Formatter;
 use crate::repl::VectorLimit;
 use edgedb_protocol::value::Value;
+use geozero::{wkb::Ewkb, ToWkt};
 
 pub trait FormatExt {
     fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error>;
@@ -269,6 +270,22 @@ impl FormatExt for Value {
 
                     Ok(())
                 })
+            }
+            V::PostGisGeometry(v) => {
+                let wkb = Ewkb(v);
+                prn.const_string(wkb.to_ewkt(None).unwrap())
+            }
+            V::PostGisGeography(v) => {
+                let wkb = Ewkb(v);
+                prn.const_string(wkb.to_ewkt(None).unwrap())
+            }
+            V::PostGisBox2d(v) => {
+                let wkb = Ewkb(v);
+                prn.const_string(wkb.to_ewkt(None).unwrap())
+            }
+            V::PostGisBox3d(v) => {
+                let wkb = Ewkb(v);
+                prn.const_string(wkb.to_ewkt(None).unwrap())
             }
         }
     }
