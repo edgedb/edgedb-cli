@@ -713,6 +713,9 @@ impl Query {
             })
             .unwrap_or(false)
     }
+    pub fn is_simple_scoping_needed(&self) -> bool {
+        self.version.as_ref().map(|f| f.major == 6).unwrap_or(false)
+    }
     pub fn cli_channel(&self) -> Option<Channel> {
         // Only one argument in CLI is allowed
         // So we skip channel if version is set, since version unambiguously
