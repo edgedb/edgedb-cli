@@ -202,6 +202,14 @@ impl FormatExt for Value {
                 }
                 Ok(())
             }),
+            V::SQLRow { shape, fields } => prn.named_tuple(|prn| {
+                for (fld, value) in shape.elements.iter().zip(fields) {
+                    prn.tuple_field(&fld.name)?;
+                    value.format(prn)?;
+                    prn.comma()?;
+                }
+                Ok(())
+            }),
             V::Array(items) => prn.array(None, |prn| {
                 if let Some(limit) = prn.max_items() {
                     for item in &items[..min(limit, items.len())] {
