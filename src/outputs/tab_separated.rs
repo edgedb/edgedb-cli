@@ -45,6 +45,7 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         | Object {..}
         | SparseObject(..)
         | NamedTuple {..}
+        | SQLRow {..}
         | Array(_)
         | Vector(_)
         | Set(_)
