@@ -66,6 +66,13 @@ const FUTURES_SCHEMA: &str = "\
     using future nonrecursive_access_policies;\n\
 ";
 
+const SIMPLE_SCOPING_SCHEMA: &str = "\
+    # Use a simpler algorithm for resolving the scope of object names.\n\
+    # This behavior will become the default in Gel 7.0.\n\
+    # See: https://docs.edgedb.com/database/edgeql/path_resolution#new-path-scoping\n\
+    using future simple_scoping;\n\
+";
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProjectInfo {
     instance_name: String,
@@ -1464,6 +1471,13 @@ fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
         let tmp = tmp_file_path(&futures);
         fs::remove_file(&tmp).ok();
         fs::write(&tmp, FUTURES_SCHEMA)?;
+        fs::rename(&tmp, &futures)?;
+    };
+    if version.is_simple_scoping_needed() {
+        let futures = dir.join(format!("scoping.{BRANDING_SCHEMA_FILE_EXT}"));
+        let tmp = tmp_file_path(&futures);
+        fs::remove_file(&tmp).ok();
+        fs::write(&tmp, SIMPLE_SCOPING_SCHEMA)?;
         fs::rename(&tmp, &futures)?;
     };
     Ok(())
