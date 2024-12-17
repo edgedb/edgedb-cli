@@ -686,7 +686,8 @@ fn update_cmd_about(cmd: &mut clap::Command) {
 }
 
 fn print_full_connection_options() {
-    let app = <HelpConnect as clap::CommandFactory>::command();
+    let mut app = <HelpConnect as clap::CommandFactory>::command();
+    update_cmd_about(&mut app);
 
     let mut new_app = clap::Command::new("edgedb-connect").term_width(term_width());
     if !print::use_color() {
