@@ -1126,7 +1126,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
 name = "edgedb-cli"
-version = "6.1.0-dev"
+version = "6.2.0-dev"
 dependencies = [
  "anes",
  "ansi-escapes",
