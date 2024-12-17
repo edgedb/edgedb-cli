@@ -27,7 +27,7 @@
       shell: bash
       run: |
         rev=$(git rev-parse HEAD)
-        jq_filter='.packages[] | select(.basename == "edgedb-cli") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select($REV | startswith($rev))'
+        jq_filter='.packages[] | select(.basename == "edgedb-cli") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | select(. != null) | . as $rev | select($REV | startswith($rev))'
 <% for tgt in targets.linux %>
         val=true
 <% if tgt.family == "debian" %>
