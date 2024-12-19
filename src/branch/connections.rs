@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use crate::commands::Options;
-use crate::connect::{Connection, Connector};
+use crate::connect::{Connection, ConnectionError, Connector};
 use crate::print;
 use uuid::Uuid;
 
@@ -40,20 +40,21 @@ impl BranchConnection<'_> {
 
 /// Attempts to connect a provided connection, returning `Ok(Some)` if the connection was
 /// established, `Ok(None)` if the connection couldn't be established because of a
-/// `ClientConnectionFailedError`, and `Err` if any other type of error occurred.
+/// `UnknownDatabaseError`, and `Err` if any other type of error occurred.
 pub async fn connect_if_branch_exists(connector: &Connector) -> anyhow::Result<Option<Connection>> {
     match connector.connect().await {
         Ok(c) => Ok(Some(c)),
         Err(e) => {
-            match e.downcast::<edgedb_tokio::Error>() {
-                Ok(e) => {
-                    if e.code() == 0x_FF_01_01_00 {
-                        // 0x_FF_01_01_00: ClientConnectionFailedError | https://www.edgedb.com/docs/reference/protocol/errors
+            match e.downcast::<ConnectionError>() {
+                Ok(ConnectionError::Error(e)) => {
+                    if e.code() == 0x_04_03_00_05 {
+                        // 0x_04_03_00_05: UnknownDatabaseError | https://www.edgedb.com/docs/reference/protocol/errors
                         return Ok(None);
                     }
 
                     Err(e.into())
                 }
+                Ok(e) => Err(e.into()),
                 Err(e) => Err(e),
             }
         }
