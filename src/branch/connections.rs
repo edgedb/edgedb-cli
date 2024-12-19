@@ -3,6 +3,7 @@ use std::ops::Deref;
 use crate::commands::Options;
 use crate::connect::{Connection, ConnectionError, Connector};
 use crate::print;
+use edgedb_errors::UnknownDatabaseError;
 use uuid::Uuid;
 
 pub struct BranchConnection<'a> {
@@ -44,20 +45,17 @@ impl BranchConnection<'_> {
 pub async fn connect_if_branch_exists(connector: &Connector) -> anyhow::Result<Option<Connection>> {
     match connector.connect().await {
         Ok(c) => Ok(Some(c)),
-        Err(e) => {
-            match e.downcast::<ConnectionError>() {
-                Ok(ConnectionError::Error(e)) => {
-                    if e.is::<UnknownDatabaseError>() {
-                        // 0x_04_03_00_05: UnknownDatabaseError | https://www.edgedb.com/docs/reference/protocol/errors
-                        return Ok(None);
-                    }
-
-                    Err(e.into())
+        Err(e) => match e.downcast::<ConnectionError>() {
+            Ok(ConnectionError::Error(e)) => {
+                if e.is::<UnknownDatabaseError>() {
+                    return Ok(None);
                 }
-                Ok(e) => Err(e.into()),
-                Err(e) => Err(e),
+
+                Err(e.into())
             }
-        }
+            Ok(e) => Err(e.into()),
+            Err(e) => Err(e),
+        },
     }
 }
 
