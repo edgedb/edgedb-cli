@@ -240,6 +240,28 @@ fn branch_commands() {
         .success()
         .stdout(predicates::str::contains("test_branch_2"));
 
+    // Drop test_branch_2 from main
+    crate::edgedb_cli_cmd()
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("-b")
+        .arg("main")
+        .arg("query")
+        .arg("drop branch test_branch_2")
+        .assert()
+        .context("drop", "drop current branch")
+        .success();
+
+    crate::edgedb_cli_cmd()
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("branch")
+        .arg("switch")
+        .arg("main")
+        .assert()
+        .context("switch", "when current branch is destroyed")
+        .success();
+
     // TODO: test how this works in projects
 }
 
