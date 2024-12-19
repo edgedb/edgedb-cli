@@ -47,7 +47,7 @@ pub async fn connect_if_branch_exists(connector: &Connector) -> anyhow::Result<O
         Err(e) => {
             match e.downcast::<ConnectionError>() {
                 Ok(ConnectionError::Error(e)) => {
-                    if e.code() == 0x_04_03_00_05 {
+                    if e.is::<UnknownDatabaseError>() {
                         // 0x_04_03_00_05: UnknownDatabaseError | https://www.edgedb.com/docs/reference/protocol/errors
                         return Ok(None);
                     }
