@@ -48,10 +48,10 @@ pub async fn connect_if_branch_exists(connector: &Connector) -> anyhow::Result<O
         Err(e) => match e.downcast::<ConnectionError>() {
             Ok(ConnectionError::Error(e)) => {
                 if e.is::<UnknownDatabaseError>() {
-                    return Ok(None);
+                    Ok(None)
+                } else {
+                    Err(e.into())
                 }
-
-                Err(e.into())
             }
             Ok(e) => Err(e.into()),
             Err(e) => Err(e),
