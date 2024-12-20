@@ -272,6 +272,14 @@ fn install() {
         .success();
 
     Command::new("edgedb")
+        .arg("--instance=second")
+        .arg("extension")
+        .arg("list")
+        .assert()
+        .context("extension-list", "basic list of the installed extensions")
+        .success();
+
+    Command::new("edgedb")
         .arg("instance")
         .arg("destroy")
         .arg("second")
@@ -305,14 +313,5 @@ fn install() {
         .arg("SELECT 1")
         .assert()
         .context("query-1a", "late query of `inst1`")
-        .success();
-
-    Command::new("edgedb")
-        .arg("--instance")
-        .arg("inst1")
-        .arg("extension")
-        .arg("list")
-        .assert()
-        .context("extension-list", "basic list of the installed extensions")
         .success();
 }
