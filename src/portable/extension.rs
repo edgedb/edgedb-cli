@@ -6,30 +6,31 @@ use anyhow::Context;
 use log::trace;
 use prettytable::{row, Table};
 
-use super::options::{
-    ExtensionInstall, ExtensionList, ExtensionListExtensions, ExtensionUninstall,
-};
+use super::options::{ExtensionInstall, ExtensionList, ExtensionListAvailable, ExtensionUninstall};
 
 use crate::branding::BRANDING_CLOUD;
 use crate::hint::HintExt;
+use crate::options::Options;
 use crate::portable::install::download_package;
 use crate::portable::local::InstanceInfo;
-use crate::portable::options::{instance_arg, InstanceName, ServerInstanceExtensionCommand};
+use crate::portable::options::{instance_arg, ExtensionCommand, InstanceName};
 use crate::portable::platform::get_server;
 use crate::portable::repository::{get_platform_extension_packages, Channel};
 use crate::table;
 
-pub fn extension_main(c: &ServerInstanceExtensionCommand) -> Result<(), anyhow::Error> {
+pub fn extension_main(c: &ExtensionCommand, o: &Options) -> Result<(), anyhow::Error> {
     use crate::portable::options::InstanceExtensionCommand::*;
     match &c.subcommand {
-        Install(c) => install(c),
-        List(c) => list(c),
-        ListAvailable(c) => list_extensions(c),
-        Uninstall(c) => uninstall(c),
+        Install(c) => install(c, o),
+        List(c) => list(c, o),
+        ListAvailable(c) => list_available(c, o),
+        Uninstall(c) => uninstall(c, o),
     }
 }
 
-fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, anyhow::Error> {
+fn get_local_instance(options: &Options) -> Result<InstanceInfo, anyhow::Error> {
+    let instance = &options.conn_options.instance;
+
     let name = match instance_arg(&None, instance)? {
         InstanceName::Local(name) => name,
         inst_name => {
@@ -52,8 +53,8 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
     Ok(inst)
 }
 
-fn list(options: &ExtensionList) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(&options.instance)?;
+fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(options)?;
     let extension_loader = inst.extension_loader_path()?;
     let output = run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
     let value: serde_json::Value = serde_json::from_str(&output)?;
@@ -79,50 +80,50 @@ fn list(options: &ExtensionList) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn uninstall(options: &ExtensionUninstall) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(&options.instance)?;
+fn uninstall(uninstall: &ExtensionUninstall, options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(options)?;
     let extension_loader = inst.extension_loader_path()?;
     run_extension_loader(
         &extension_loader,
         Some("--uninstall".to_string()),
-        Some(Path::new(&options.extension)),
+        Some(Path::new(&uninstall.extension)),
     )?;
     Ok(())
 }
 
-fn install(options: &ExtensionInstall) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(&options.instance)?;
+fn install(install: &ExtensionInstall, options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(options)?;
     let extension_loader = inst.extension_loader_path()?;
 
     let version = inst.get_version()?.specific();
-    let channel = options.channel.unwrap_or(Channel::from_version(&version)?);
-    let slot = options.slot.clone().unwrap_or(version.slot());
+    let channel = install.channel.unwrap_or(Channel::from_version(&version)?);
+    let slot = install.slot.clone().unwrap_or(version.slot());
     trace!("Instance: {version} {channel:?} {slot}");
     let packages = get_platform_extension_packages(channel, &slot, get_server()?)?;
 
     let package = packages
         .iter()
-        .find(|pkg| pkg.tags.get("extension").cloned().unwrap_or_default() == options.extension);
+        .find(|pkg| pkg.tags.get("extension").cloned().unwrap_or_default() == install.extension);
 
     match package {
         Some(pkg) => {
             println!(
                 "Found extension package: {} version {}",
-                options.extension, pkg.version
+                install.extension, pkg.version
             );
             let zip = download_package(pkg)?;
-            let command = if options.reinstall {
+            let command = if install.reinstall {
                 Some("--reinstall")
             } else {
                 None
             };
             run_extension_loader(&extension_loader, command, Some(&zip))?;
-            println!("Extension '{}' installed successfully.", options.extension);
+            println!("Extension '{}' installed successfully.", install.extension);
         }
         None => {
             return Err(anyhow::anyhow!(
                 "Extension '{}' not found in available packages.",
-                options.extension
+                install.extension
             ));
         }
     }
@@ -164,12 +165,12 @@ fn run_extension_loader(
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-fn list_extensions(options: &ExtensionListExtensions) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(&options.instance)?;
+fn list_available(list: &ExtensionListAvailable, options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(options)?;
 
     let version = inst.get_version()?.specific();
-    let channel = options.channel.unwrap_or(Channel::from_version(&version)?);
-    let slot = options.slot.clone().unwrap_or(version.slot());
+    let channel = list.channel.unwrap_or(Channel::from_version(&version)?);
+    let slot = list.slot.clone().unwrap_or(version.slot());
     trace!("Instance: {version} {channel:?} {slot}");
     let packages = get_platform_extension_packages(channel, &slot, get_server()?)?;
 

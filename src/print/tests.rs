@@ -6,7 +6,6 @@ use std::task;
 
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
-use nom::AsBytes;
 use tokio_stream::Stream;
 
 use crate::print::native::FormatExt;

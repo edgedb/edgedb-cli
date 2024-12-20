@@ -82,9 +82,14 @@ pub enum InstanceCommand {
 #[derive(clap::Args, Debug, Clone)]
 #[command(version = "help_expand")]
 #[command(disable_version_flag = true)]
-pub struct ServerInstanceExtensionCommand {
+pub struct ExtensionCommand {
     #[command(subcommand)]
     pub subcommand: InstanceExtensionCommand,
+
+    #[command(flatten)]
+    #[deprecated]
+    // This is here for --help only. Values gets parsed by the global args.
+    pub _conn_opts: ConnectionOptions,
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -92,27 +97,18 @@ pub enum InstanceExtensionCommand {
     /// List installed extensions for a local instance.
     List(ExtensionList),
     /// List available extensions for a local instance.
-    ListAvailable(ExtensionListExtensions),
+    ListAvailable(ExtensionListAvailable),
     /// Install an extension for a local instance.
     Install(ExtensionInstall),
     /// Uninstall an extension from a local instance.
     Uninstall(ExtensionUninstall),
 }
 
-#[derive(clap::Args, IntoArgs, Debug, Clone)]
-pub struct ExtensionList {
-    /// Specify local instance name.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
-    pub instance: Option<InstanceName>,
-}
+#[derive(clap::Args, Debug, Clone)]
+pub struct ExtensionList {}
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
-pub struct ExtensionListExtensions {
-    /// Specify local instance name.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
-    pub instance: Option<InstanceName>,
+pub struct ExtensionListAvailable {
     /// Specify the channel override (stable, testing, or nightly)
     #[arg(long, hide = true)]
     pub channel: Option<Channel>,
@@ -123,10 +119,6 @@ pub struct ExtensionListExtensions {
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ExtensionInstall {
-    /// Specify local instance name.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
-    pub instance: Option<InstanceName>,
     /// Name of the extension to install
     #[arg(short = 'E', long)]
     pub extension: String,
@@ -143,9 +135,6 @@ pub struct ExtensionInstall {
 /// Represents the options for uninstalling an extension from a local EdgeDB instance.
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ExtensionUninstall {
-    /// Specify local instance name.
-    #[arg(short = 'I', long)]
-    pub instance: Option<InstanceName>,
     /// The name of the extension to uninstall.
     #[arg(short = 'E', long)]
     pub extension: String,

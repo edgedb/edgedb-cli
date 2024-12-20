@@ -53,7 +53,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Extension(cmd) => {
             directory_check::check_and_error()?;
-            portable::extension_main(cmd)
+            portable::extension_main(cmd, options)
         }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;

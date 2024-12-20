@@ -367,7 +367,7 @@ pub enum Command {
     /// Manage local [`BRANDING`] installations
     Server(portable::options::ServerCommand),
     /// Manage local extensions
-    Extension(portable::options::ServerInstanceExtensionCommand),
+    Extension(portable::options::ExtensionCommand),
     /// Generate shell completions
     #[command(name = "_gen_completions")]
     #[command(hide = true)]
