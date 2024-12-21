@@ -272,6 +272,14 @@ fn install() {
         .success();
 
     Command::new("edgedb")
+        .arg("--instance=second")
+        .arg("extension")
+        .arg("list")
+        .assert()
+        .context("extension-list", "basic list of the installed extensions")
+        .success();
+
+    Command::new("edgedb")
         .arg("instance")
         .arg("destroy")
         .arg("second")
