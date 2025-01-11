@@ -55,16 +55,6 @@ fn get_local_instance(options: &Options) -> Result<InstanceInfo, anyhow::Error> 
     Ok(inst)
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn _run_query<R>(connector: Connector, query: &str) -> Result<Vec<R>, anyhow::Error>
-where
-    R: QueryResult,
-{
-    let mut connection = connector.connect().await?;
-    let results = connection.query(query, &()).await?;
-    Ok(results)
-}
-
 type ExtensionInfo = (String, String);
 
 fn _get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
@@ -105,7 +95,14 @@ fn _get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Erro
     );";
 
     let connector = options.block_on_create_connector()?;
-    _run_query(connector, query)
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let extension_query = runtime.spawn(connector.run_single_query::<ExtensionInfo>(query));
+
+    let extensions = runtime.block_on(extension_query)??;
+    Ok(extensions)
 }
 
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
