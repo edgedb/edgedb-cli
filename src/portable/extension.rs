@@ -67,47 +67,49 @@ where
 
 type ExtensionInfo = (String, String);
 
-fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
-    let extensions: Vec<ExtensionInfo> = (|| {
-        if let InstanceName::Local(name) = instance_arg(&None, &options.conn_options.instance)? {
-            // if local instance, check instance info
-            let instance_info = InstanceInfo::try_read(name)?;
-            if let Some(instance_info) = instance_info {
-                let extension_loader = instance_info.extension_loader_path()?;
-                let output =
-                    run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
-                let value: serde_json::Value = serde_json::from_str(&output)?;
+fn _get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
+    if let InstanceName::Local(name) = instance_arg(&None, &options.conn_options.instance)? {
+        // if local instance, check instance info
+        let instance_info = InstanceInfo::try_read(name)?;
+        if let Some(instance_info) = instance_info {
+            let extension_loader = instance_info.extension_loader_path()?;
+            let output =
+                run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
+            let value: serde_json::Value = serde_json::from_str(&output)?;
 
-                let mut extensions: Vec<ExtensionInfo> = vec![];
-                if let Some(array) = value.as_array() {
-                    for pkg in array {
-                        let name = pkg
-                            .get("extension_name")
-                            .map(|s| s.as_str().unwrap_or_default().to_owned())
-                            .unwrap_or_default();
-                        let version = pkg
-                            .get("extension_version")
-                            .map(|s| s.as_str().unwrap_or_default().to_owned())
-                            .unwrap_or_default();
-                        extensions.push((name, version));
-                    }
+            let mut extensions: Vec<ExtensionInfo> = vec![];
+            if let Some(array) = value.as_array() {
+                for pkg in array {
+                    let name = pkg
+                        .get("extension_name")
+                        .map(|s| s.as_str().unwrap_or_default().to_owned())
+                        .unwrap_or_default();
+                    let version = pkg
+                        .get("extension_version")
+                        .map(|s| s.as_str().unwrap_or_default().to_owned())
+                        .unwrap_or_default();
+                    extensions.push((name, version));
                 }
-
-                return Ok(extensions);
             }
+
+            return Ok(extensions);
         }
+    }
 
-        // if remote or cloud instance, connect and query extension packages
-        let query = "for ext in sys::ExtensionPackage union (
-            with
-                ver := ext.version,
-                ver_str := <str>ver.major++'.'++<str>ver.minor,
-            select (ext.name, ver_str)
-        );";
+    // if remote or cloud instance, connect and query extension packages
+    let query = "for ext in sys::ExtensionPackage union (
+        with
+            ver := ext.version,
+            ver_str := <str>ver.major++'.'++<str>ver.minor,
+        select (ext.name, ver_str)
+    );";
 
-        let connector = options.block_on_create_connector()?;
-        _run_query(connector, query)
-    })()?;
+    let connector = options.block_on_create_connector()?;
+    _run_query(connector, query)
+}
+
+fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
+    let extensions = _get_extensions(options)?;
 
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
