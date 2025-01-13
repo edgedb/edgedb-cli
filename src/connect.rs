@@ -212,6 +212,15 @@ impl Connector {
     pub fn get(&self) -> anyhow::Result<&Config, ArcError> {
         self.config.as_ref().map_err(Clone::clone)
     }
+
+    pub async fn run_single_query<R>(self, query: &str) -> Result<Vec<R>, anyhow::Error>
+    where
+        R: QueryResult,
+    {
+        let mut connection = self.connect().await?;
+        let results = connection.query(query, &()).await?;
+        Ok(results)
+    }
 }
 
 impl Connection {

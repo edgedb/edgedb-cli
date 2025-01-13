@@ -3,12 +3,14 @@ use std::path::Path;
 use std::process::Command;
 
 use anyhow::Context;
+use edgedb_protocol::QueryResult;
 use log::trace;
 use prettytable::{row, Table};
 
 use super::options::{ExtensionInstall, ExtensionList, ExtensionListAvailable, ExtensionUninstall};
 
 use crate::branding::BRANDING_CLOUD;
+use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::options::Options;
 use crate::portable::install::download_package;
@@ -53,27 +55,64 @@ fn get_local_instance(options: &Options) -> Result<InstanceInfo, anyhow::Error> 
     Ok(inst)
 }
 
+type ExtensionInfo = (String, String);
+
+fn _get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
+    if let InstanceName::Local(name) = instance_arg(&None, &options.conn_options.instance)? {
+        // if local instance, check instance info
+        let instance_info = InstanceInfo::try_read(name)?;
+        if let Some(instance_info) = instance_info {
+            let extension_loader = instance_info.extension_loader_path()?;
+            let output =
+                run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
+            let value: serde_json::Value = serde_json::from_str(&output)?;
+
+            let mut extensions: Vec<ExtensionInfo> = vec![];
+            if let Some(array) = value.as_array() {
+                for pkg in array {
+                    let name = pkg
+                        .get("extension_name")
+                        .map(|s| s.as_str().unwrap_or_default().to_owned())
+                        .unwrap_or_default();
+                    let version = pkg
+                        .get("extension_version")
+                        .map(|s| s.as_str().unwrap_or_default().to_owned())
+                        .unwrap_or_default();
+                    extensions.push((name, version));
+                }
+            }
+
+            return Ok(extensions);
+        }
+    }
+
+    // if remote or cloud instance, connect and query extension packages
+    let query = "for ext in sys::ExtensionPackage union (
+        with
+            ver := ext.version,
+            ver_str := <str>ver.major++'.'++<str>ver.minor,
+        select (ext.name, ver_str)
+    );";
+
+    let connector = options.block_on_create_connector()?;
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let extension_query = runtime.spawn(connector.run_single_query::<ExtensionInfo>(query));
+
+    let extensions = runtime.block_on(extension_query)??;
+    Ok(extensions)
+}
+
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(options)?;
-    let extension_loader = inst.extension_loader_path()?;
-    let output = run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
-    let value: serde_json::Value = serde_json::from_str(&output)?;
+    let extensions = _get_extensions(options)?;
 
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
-    table.add_row(row!["Name", "Version"]);
-    if let Some(array) = value.as_array() {
-        for pkg in array {
-            let name = pkg
-                .get("extension_name")
-                .map(|s| s.as_str().unwrap_or_default().to_owned())
-                .unwrap_or_default();
-            let version = pkg
-                .get("extension_version")
-                .map(|s| s.as_str().unwrap_or_default().to_owned())
-                .unwrap_or_default();
-            table.add_row(row![name, version]);
-        }
+    table.set_titles(row!["Name", "Version"]);
+    for (name, version) in extensions {
+        table.add_row(row![name, version]);
     }
     table.printstd();
 
