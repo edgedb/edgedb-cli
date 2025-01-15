@@ -332,7 +332,7 @@ fn warnings() {
         .context("warnings", "print warning from _warn_on_call")
         .success();
 
-    crate::rm_migration_files("tests/migrations/db2", &[1]);
+    crate::rm_migration_files("tests/migrations/db6", &[1]);
     SERVER
         .admin_cmd()
         .arg("branch")
