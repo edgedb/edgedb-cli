@@ -57,7 +57,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;
-            portable::instance_main(cmd, options)
+            portable::instance::run(cmd, options)
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;

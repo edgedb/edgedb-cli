@@ -1,10 +1,9 @@
 use std::io::{stdout, Write};
 use url::Url;
 
-use crate::options::Options;
-use crate::portable::options::ShowCredentials;
+use crate::options::{ConnectionOptions, Options};
 
-pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Result<()> {
+pub fn show_credentials(options: &Options, c: &Command) -> anyhow::Result<()> {
     use edgedb_tokio::credentials::TlsSecurity;
 
     let connector = options.block_on_create_connector()?;
@@ -69,4 +68,17 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
             .expect("stdout write succeeds");
     }
     Ok(())
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct Command {
+    #[command(flatten)]
+    pub cloud_opts: ConnectionOptions,
+
+    /// Output in JSON format (password is included in cleartext).
+    #[arg(long)]
+    pub json: bool,
+    /// Output a DSN with password in cleartext.
+    #[arg(long)]
+    pub insecure_dsn: bool,
 }

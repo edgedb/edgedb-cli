@@ -35,16 +35,18 @@ use crate::options::CloudOptions;
 use crate::platform::{bytes_to_path, path_bytes};
 use crate::platform::{config_dir, is_schema_file, symlink_dir, tmp_file_path};
 use crate::portable::config;
-use crate::portable::control;
-use crate::portable::create;
-use crate::portable::destroy;
 use crate::portable::exit_codes;
-use crate::portable::server::install;
+use crate::portable::instance;
+use crate::portable::instance::control;
+use crate::portable::instance::create;
+use crate::portable::instance::destroy;
+use crate::portable::instance::upgrade;
 use crate::portable::local::{allocate_port, InstanceInfo, Paths};
-use crate::portable::options::{self, InstanceName, Start, StartConf};
+use crate::portable::options::InstanceName;
+use crate::portable::options::{CloudInstanceBillables, CloudInstanceParams};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, PackageInfo, Query};
-use crate::portable::upgrade;
+use crate::portable::server::install;
 use crate::portable::ver;
 use crate::portable::ver::Specific;
 use crate::portable::windows;
@@ -135,7 +137,7 @@ pub struct Init {
 
     /// Deprecated parameter, does nothing.
     #[arg(long, hide = true)]
-    pub server_start_conf: Option<StartConf>,
+    pub server_start_conf: Option<create::StartConf>,
 
     /// Skip running migrations
     ///
@@ -815,20 +817,20 @@ fn do_init(
     let instance = if cfg!(windows) {
         let q = repository::Query::from_version(&pkg.version.specific())?;
         windows::create_instance(
-            &options::Create {
+            &create::Command {
                 name: Some(inst_name.clone()),
                 nightly: false,
                 channel: q.cli_channel(),
                 version: q.version,
-                cloud_params: options::CloudInstanceParams {
+                cloud_params: CloudInstanceParams {
                     region: None,
-                    billables: options::CloudInstanceBillables {
+                    billables: CloudInstanceBillables {
                         tier: None,
                         compute_size: None,
                         storage_size: None,
                     },
                 },
-                cloud_backup_source: options::CloudBackupSourceParams {
+                cloud_backup_source: create::CloudBackupSourceParams {
                     from_backup_id: None,
                     from_instance: None,
                 },
@@ -866,7 +868,7 @@ fn do_init(
                     "{BRANDING} will not start on next login. \
                              Trying to start database in the background..."
                 );
-                control::start(&Start {
+                control::start(&control::Start {
                     name: None,
                     instance: Some(inst_name.clone()),
                     foreground: false,
@@ -2103,7 +2105,7 @@ fn upgrade_local(
     if pkg_ver > inst_ver || cmd.force {
         if cfg!(windows) {
             windows::upgrade(
-                &options::Upgrade {
+                &instance::upgrade::Command {
                     to_latest: false,
                     to_version: to_version.version.clone(),
                     to_channel: None,

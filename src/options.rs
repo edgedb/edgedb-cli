@@ -363,7 +363,7 @@ pub enum Command {
     /// Manage project installation
     Project(project::ProjectCommand),
     /// Manage local [`BRANDING`] instances
-    Instance(portable::options::ServerInstanceCommand),
+    Instance(portable::instance::Command),
     /// Manage local [`BRANDING`] installations
     Server(portable::server::ServerCommand),
     /// Manage local extensions

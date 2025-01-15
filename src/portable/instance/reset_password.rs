@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use std::path::Path;
 
 use base64::display::Base64Display;
+use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
@@ -14,7 +15,7 @@ use crate::commands::ExitCode;
 use crate::connect::Connection;
 use crate::credentials;
 use crate::portable::local::InstanceInfo;
-use crate::portable::options::{instance_arg, InstanceName, ResetPassword};
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::print;
 use crate::tty_password;
 
@@ -31,13 +32,38 @@ pub fn generate_password() -> String {
         .collect()
 }
 
-#[context("error reading credentials at {}", path.display())]
-fn read_credentials(path: &Path) -> anyhow::Result<Credentials> {
-    let data = fs::read(path)?;
-    Ok(serde_json::from_slice(&data)?)
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Args {
+    /// Name of instance to reset.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// User to change password for (default obtained from credentials file).
+    #[arg(long)]
+    pub user: Option<String>,
+    /// Read password from the terminal rather than generating a new one.
+    #[arg(long)]
+    pub password: bool,
+    /// Read password from stdin rather than generating a new one.
+    #[arg(long)]
+    pub password_from_stdin: bool,
+    /// Save new user and password into a credentials file. By default
+    /// credentials file is updated only if user name matches.
+    #[arg(long)]
+    pub save_credentials: bool,
+    /// Do not save generated password into a credentials file even if user name matches.
+    #[arg(long)]
+    pub no_save_credentials: bool,
+    /// Do not print any messages, only indicate success by exit status.
+    #[arg(long)]
+    pub quiet: bool,
 }
 
-pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
+pub fn reset_password(options: &Args) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
@@ -124,6 +150,12 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[context("error reading credentials at {}", path.display())]
+fn read_credentials(path: &Path) -> anyhow::Result<Credentials> {
+    let data = fs::read(path)?;
+    Ok(serde_json::from_slice(&data)?)
 }
 
 fn _b64(s: &[u8]) -> Base64Display<base64::engine::GeneralPurpose> {

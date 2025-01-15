@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
+use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 use humantime::format_duration;
 use is_terminal::IsTerminal;
@@ -16,6 +17,7 @@ use tokio::join;
 use tokio::time::sleep;
 
 use crate::connect::Connection;
+use crate::options::CloudOptions;
 use edgedb_tokio::{credentials::Credentials, Builder};
 
 use crate::branding::{BRANDING_CLOUD, QUERY_TAG};
@@ -26,16 +28,82 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::format;
 use crate::platform::data_dir;
-use crate::portable::control;
 use crate::portable::exit_codes;
+use crate::portable::instance::control;
+use crate::portable::instance::upgrade::{BackupMeta, UpgradeMeta};
 use crate::portable::local::{is_valid_local_instance_name, lock_file, read_ports};
 use crate::portable::local::{InstanceInfo, Paths};
-use crate::portable::options::{instance_arg, InstanceName, List, Status};
-use crate::portable::upgrade::{BackupMeta, UpgradeMeta};
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::{linux, macos, windows};
 use crate::print::{self, msg, Highlight};
 use crate::process;
 use crate::table::{self, Cell, Row, Table};
+
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct List {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Output more debug info about each instance.
+    #[arg(long, conflicts_with_all=&["debug", "json"])]
+    pub extended: bool,
+
+    /// Output all available debug info about each instance.
+    #[arg(long, hide = true)]
+    #[arg(conflicts_with_all=&["extended", "json"])]
+    pub debug: bool,
+
+    /// Output in JSON format.
+    #[arg(long, conflicts_with_all=&["extended", "debug"])]
+    pub json: bool,
+
+    /// Query remote instances.
+    //  Currently needed for WSL.
+    #[arg(long, hide = true)]
+    pub no_remote: bool,
+
+    /// Do not show warnings on no instances.
+    //  Currently needed for WSL.
+    #[arg(long, hide = true)]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Status {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Name of the instance
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Show current systems service info.
+    #[arg(long, conflicts_with_all=&["debug", "json", "extended"])]
+    pub service: bool,
+
+    /// Output more debug info about each instance.
+    #[arg(long, conflicts_with_all=&["debug", "json", "service"])]
+    pub extended: bool,
+
+    /// Output all available debug info about each instance.
+    #[arg(long, hide = true)]
+    #[arg(conflicts_with_all=&["extended", "json", "service"])]
+    pub debug: bool,
+
+    /// Output in JSON format.
+    #[arg(long, conflicts_with_all=&["extended", "debug", "service"])]
+    pub json: bool,
+
+    /// Do not print error on "No instance found", only indicate by error code.
+    //  Currently needed for WSL.
+    #[arg(long, hide = true)]
+    pub quiet: bool,
+}
 
 #[derive(Debug)]
 pub enum Service {

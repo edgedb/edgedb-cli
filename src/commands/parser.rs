@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use clap::ValueHint;
-
 use crate::branding::BRANDING_CLI_CMD;
 use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
@@ -403,7 +401,7 @@ pub struct Dump {
 
     /// Path to file write dump to (or directory if `--all` is specified).
     /// Use dash `-` to write to stdout (latter does not work in `--all` mode)
-    #[arg(value_hint=ValueHint::AnyPath)]
+    #[arg(value_hint=clap::ValueHint::AnyPath)]
     pub path: PathBuf,
     /// Dump all databases and server configuration. `path` is a directory
     /// in this case and thus `--format=dir` is also required.  Will
@@ -438,7 +436,7 @@ pub struct Restore {
 
     /// Path to file (or directory in case of `--all`) to read dump from.
     /// Use dash `-` to read from stdin
-    #[arg(value_hint=ValueHint::AnyPath)]
+    #[arg(value_hint=clap::ValueHint::AnyPath)]
     pub path: PathBuf,
 
     /// Restore all databases and server configuration. `path` is a

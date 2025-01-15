@@ -1,8 +1,10 @@
 use color_print::cformat;
+use edgedb_cli_derive::IntoArgs;
 
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
-use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
+use crate::options::CloudOptions;
+use crate::portable::options::InstanceName;
 use crate::print::msg;
 use crate::question;
 
@@ -17,6 +19,21 @@ pub fn list(cmd: &ListBackups, opts: &crate::options::Options) -> anyhow::Result
             name,
         } => list_cloud_backups_cmd(cmd, org, name, opts),
     }
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ListBackups {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to list backups for.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    /// Output in JSON format.
+    #[arg(long)]
+    pub json: bool,
 }
 
 fn list_cloud_backups_cmd(
@@ -44,6 +61,31 @@ pub fn backup(cmd: &Backup, opts: &crate::options::Options) -> anyhow::Result<()
             name,
         } => backup_cloud_cmd(cmd, org, name, opts),
     }
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Backup {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to restore.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    /// Do not ask questions.
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Clone, Debug)]
+#[group(id = "backupspec", required = true)]
+pub struct BackupSpec {
+    #[arg(long)]
+    pub backup_id: Option<String>,
+
+    #[arg(long)]
+    pub latest: bool,
 }
 
 fn backup_cloud_cmd(
@@ -90,6 +132,29 @@ pub fn restore(cmd: &Restore, opts: &crate::options::Options) -> anyhow::Result<
             name,
         } => restore_cloud_cmd(cmd, org, name, opts),
     }
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Restore {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to restore.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    #[command(flatten)]
+    pub backup_spec: BackupSpec,
+
+    /// Name of source instance to restore the backup from.
+    #[arg(long)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub source_instance: Option<InstanceName>,
+
+    /// Do not ask questions.
+    #[arg(long)]
+    pub non_interactive: bool,
 }
 
 fn restore_cloud_cmd(

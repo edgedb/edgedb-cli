@@ -3,9 +3,11 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use const_format::concatcp;
+use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 
 use color_print::cformat;
+use serde::{Deserialize, Serialize};
 
 use crate::branding::{
     BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, BRANDING_DEFAULT_USERNAME,
@@ -15,61 +17,28 @@ use crate::cloud;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
+use crate::options::CloudOptions;
 use crate::platform;
-use crate::portable::control::{self, ensure_runstate_dir, self_signed_arg};
-use crate::portable::exit_codes;
-use crate::portable::server::install;
+use crate::portable::instance::control::{self, ensure_runstate_dir, self_signed_arg};
+use crate::portable::instance::reset_password::{generate_password, password_hash};
+use crate::portable::instance::control::Start;
 use crate::portable::local::{allocate_port, write_json};
 use crate::portable::local::{InstanceInfo, Paths};
-use crate::portable::options::{Create, InstanceName, Start};
+use crate::portable::options::{CloudInstanceParams, InstanceName};
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{Query, QueryOptions};
-use crate::portable::reset_password::{generate_password, password_hash};
+use crate::portable::repository::{Channel, Query, QueryOptions};
+use crate::portable::server::install;
 use crate::portable::ver::Specific;
+use crate::portable::{exit_codes, ver};
 use crate::portable::{linux, macos, windows};
 use crate::print::{self, err_marker, msg, Highlight};
-use crate::process;
+use crate::process::{self, IntoArg};
 use crate::question;
 
 use crate::portable::project::{get_default_branch_name, get_default_user_name};
 use edgedb_tokio::credentials::Credentials;
 
-fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<InstanceName> {
-    let instances = credentials::all_instance_names()?;
-    loop {
-        let name = question::String::new("Specify a name for the new instance").ask()?;
-        let inst_name = match InstanceName::from_str(&name) {
-            Ok(name) => name,
-            Err(e) => {
-                print::error!("{e}");
-                continue;
-            }
-        };
-        let exists = match &inst_name {
-            InstanceName::Local(name) => instances.contains(name),
-            InstanceName::Cloud { org_slug, name } => {
-                if !cloud_client.is_logged_in {
-                    if let Err(e) = cloud::ops::prompt_cloud_login(cloud_client) {
-                        print::error!("{e}");
-                        continue;
-                    }
-                }
-                cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)?.is_some()
-            }
-        };
-        if exists {
-            msg!(
-                "{} Instance {} already exists.",
-                err_marker(),
-                name.emphasize()
-            );
-        } else {
-            return Ok(inst_name);
-        }
-    }
-}
-
-pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn create(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error!(
             "`{BRANDING_CLI_CMD} instance create` is not supported in Docker containers."
@@ -213,8 +182,145 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Name of instance to create. Asked interactively if not specified.
+    #[arg(value_hint=clap::ValueHint::Other)]
+    pub name: Option<InstanceName>,
+
+    /// Create instance using the latest nightly version.
+    #[arg(long, conflicts_with_all=&["channel", "version"])]
+    pub nightly: bool,
+    /// Create instance with specified version.
+    #[arg(long, conflicts_with_all=&["nightly", "channel"])]
+    pub version: Option<ver::Filter>,
+    /// Indicate channel (stable, testing, or nightly) for instance to create.
+    #[arg(long, conflicts_with_all=&["nightly", "version"])]
+    #[arg(value_enum)]
+    pub channel: Option<Channel>,
+    /// Indicate port for instance to create.
+    #[arg(long)]
+    pub port: Option<u16>,
+
+    #[command(flatten)]
+    pub cloud_params: CloudInstanceParams,
+
+    #[command(flatten)]
+    pub cloud_backup_source: CloudBackupSourceParams,
+
+    /// Deprecated parameter, unused.
+    #[arg(long, hide = true)]
+    pub start_conf: Option<StartConf>,
+
+    /// Default user name (created during initialization and saved in
+    /// credentials file). This defaults to 'admin' on EdgeDB >=6.x; otherwise
+    /// 'edgedb' is used.
+    #[arg(long)]
+    pub default_user: Option<String>,
+
+    /// The default branch name. This defaults to 'main' on EdgeDB >=5.x; otherwise
+    /// 'edgedb' is used.
+    pub default_branch: Option<String>,
+
+    /// Do not ask questions. Assume user wants to upgrade instance.
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum StartConf {
+    Auto,
+    Manual,
+}
+
+impl FromStr for StartConf {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> anyhow::Result<StartConf> {
+        match s {
+            "auto" => Ok(StartConf::Auto),
+            "manual" => Ok(StartConf::Manual),
+            _ => anyhow::bail!(
+                "Unsupported start configuration, \
+                options: `auto`, `manual`"
+            ),
+        }
+    }
+}
+
+impl IntoArg for &StartConf {
+    fn add_arg(self, process: &mut process::Native) {
+        process.arg(self.as_str());
+    }
+}
+
+impl StartConf {
+    pub fn as_str(&self) -> &str {
+        match self {
+            StartConf::Auto => "auto",
+            StartConf::Manual => "manual",
+        }
+    }
+}
+
+impl std::fmt::Display for StartConf {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct CloudBackupSourceParams {
+    // The name of the instance that should be used as the source
+    // of the backup.
+    #[arg(long)]
+    pub from_instance: Option<InstanceName>,
+
+    // The ID of the backup to restore from.
+    #[arg(long)]
+    pub from_backup_id: Option<String>,
+}
+
+fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<InstanceName> {
+    let instances = credentials::all_instance_names()?;
+    loop {
+        let name = question::String::new("Specify a name for the new instance").ask()?;
+        let inst_name = match InstanceName::from_str(&name) {
+            Ok(name) => name,
+            Err(e) => {
+                print::error!("{e}");
+                continue;
+            }
+        };
+        let exists = match &inst_name {
+            InstanceName::Local(name) => instances.contains(name),
+            InstanceName::Cloud { org_slug, name } => {
+                if !cloud_client.is_logged_in {
+                    if let Err(e) = cloud::ops::prompt_cloud_login(cloud_client) {
+                        print::error!("{e}");
+                        continue;
+                    }
+                }
+                cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)?.is_some()
+            }
+        };
+        if exists {
+            msg!(
+                "{} Instance {} already exists.",
+                err_marker(),
+                name.emphasize()
+            );
+        } else {
+            return Ok(inst_name);
+        }
+    }
+}
+
 fn create_cloud(
-    cmd: &Create,
+    cmd: &Command,
     opts: &crate::options::Options,
     org_slug: &str,
     name: &str,

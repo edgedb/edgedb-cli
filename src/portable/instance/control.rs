@@ -3,6 +3,7 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
@@ -12,11 +13,90 @@ use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::current_exe;
 use crate::portable::local::{lock_file, open_lock, runstate_dir, InstanceInfo};
-use crate::portable::options::{instance_arg, InstanceName, Logs, Restart, Start, Stop};
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::ver;
 use crate::portable::{linux, macos, windows};
 use crate::print;
 use crate::process;
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Start {
+    /// Name of instance to start.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Start server in the foreground.
+    #[arg(long)]
+    #[cfg_attr(
+        target_os = "linux",
+        arg(help = "Start the server in the foreground rather than using \
+                  systemd to manage the process (note: you might need to \
+                  stop the non-foreground instance first)")
+    )]
+    #[cfg_attr(
+        target_os = "macos",
+        arg(help = "Start the server in the foreground rather than using \
+                  launchctl to manage the process (note: you might need to \
+                  stop the non-foreground instance first)")
+    )]
+    pub foreground: bool,
+
+    /// With `--foreground`, stops server running in the background; also restarts
+    /// the service on exit.
+    #[arg(long, conflicts_with = "managed_by")]
+    pub auto_restart: bool,
+
+    /// Indicate whether managed by edgedb-cli, systemd, launchctl, or None.
+    #[arg(long, hide = true)]
+    #[arg(value_parser=["systemd", "launchctl", "edgedb-cli"])]
+    #[arg(conflicts_with = "auto_restart")]
+    pub managed_by: Option<String>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Stop {
+    /// Name of instance to stop.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Restart {
+    /// Name of instance to restart.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)]
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Logs {
+    /// Name of the instance
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Number of lines to show.
+    #[arg(short = 'n', long)]
+    pub tail: Option<usize>,
+
+    /// Show log tail and continue watching for new entries.
+    #[arg(short = 'f', long)]
+    pub follow: bool,
+}
 
 fn supervisor_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     if cfg!(windows) {

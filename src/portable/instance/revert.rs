@@ -1,24 +1,24 @@
 use const_format::concatcp;
+use edgedb_cli_derive::IntoArgs;
 use fs_err as fs;
-
 use anyhow::Context;
 
 use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::commands::ExitCode;
 use crate::format;
 use crate::platform::tmp_file_path;
-use crate::portable::control;
-use crate::portable::create;
 use crate::portable::exit_codes;
-use crate::portable::server::install;
+use crate::portable::instance::control;
+use crate::portable::instance::create;
+use crate::portable::instance::status::{instance_status, BackupStatus, DataDirectory};
 use crate::portable::local::Paths;
-use crate::portable::options::{instance_arg, InstanceName, Revert};
-use crate::portable::status::{instance_status, BackupStatus, DataDirectory};
+use crate::portable::options::{instance_arg, InstanceName};
+use crate::portable::server::install;
 use crate::print::{self, msg, Highlight};
 use crate::process;
 use crate::question;
 
-pub fn revert(options: &Revert) -> anyhow::Result<()> {
+pub fn revert(options: &Command) -> anyhow::Result<()> {
     use BackupStatus::*;
 
     let name = match instance_arg(&options.name, &options.instance)? {
@@ -123,4 +123,23 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     fs::remove_file(paths.data_dir.join("backup.json"))?;
     fs::remove_dir_all(&tmp_path)?;
     Ok(())
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    /// Name of instance to revert.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Do not check if upgrade is in progress.
+    #[arg(long)]
+    pub ignore_pid_check: bool,
+
+    /// Do not ask for confirmation.
+    #[arg(short = 'y', long)]
+    pub no_confirm: bool,
 }

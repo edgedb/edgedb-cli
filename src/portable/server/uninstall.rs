@@ -8,7 +8,7 @@ use crate::portable::local;
 use crate::portable::local::InstanceInfo;
 use crate::portable::repository::Query;
 use crate::portable::server::Uninstall;
-use crate::portable::status;
+use crate::portable::instance::status;
 use crate::portable::ver;
 use crate::print::{self, msg, Highlight};
 

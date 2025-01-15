@@ -2,9 +2,9 @@ use crate::cli::options::Command as Cli;
 use crate::commands::parser::Common;
 use crate::migrations::options::MigrationCmd;
 use crate::options::{Command, Options};
-use crate::portable::server::Command as Server;
-use crate::portable::options::InstanceCommand as Instance;
+use crate::portable::instance;
 use crate::portable::project::Command as Project;
+use crate::portable::server::Command as Server;
 use std::io::Write;
 
 pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
@@ -41,10 +41,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
             _ => {}
         },
         Some(Command::Instance(i)) => match &i.subcommand {
-            Instance::Destroy(d) if d.verbose => {
+            instance::Subcommands::Destroy(d) if d.verbose => {
                 builder.filter_module("edgedb::portable::destroy", log::LevelFilter::Info);
             }
-            Instance::Upgrade(u) if u.verbose => {
+            instance::Subcommands::Upgrade(u) if u.verbose => {
                 builder.filter_module("edgedb::portable::upgrade", log::LevelFilter::Info);
             }
             _ => {}
