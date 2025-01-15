@@ -39,7 +39,6 @@ use crate::print::{self, msg, Highlight};
 use crate::process;
 use crate::table::{self, Cell, Row, Table};
 
-
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct List {
     #[command(flatten)]

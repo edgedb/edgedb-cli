@@ -1,5 +1,5 @@
-use color_print::cformat;
 use anyhow::Context;
+use color_print::cformat;
 use edgedb_cli_derive::IntoArgs;
 
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
