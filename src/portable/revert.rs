@@ -10,7 +10,7 @@ use crate::platform::tmp_file_path;
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::exit_codes;
-use crate::portable::install;
+use crate::portable::server::install;
 use crate::portable::local::Paths;
 use crate::portable::options::{instance_arg, InstanceName, Revert};
 use crate::portable::status::{instance_status, BackupStatus, DataDirectory};

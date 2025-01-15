@@ -20,7 +20,7 @@ use crate::migrations::migration;
 use crate::migrations::options::UpgradeCheck;
 use crate::migrations::timeout;
 use crate::portable::config::Config;
-use crate::portable::install;
+use crate::portable::server::install;
 use crate::portable::local::InstallInfo;
 use crate::portable::repository::{self, PackageInfo, Query};
 use crate::print::{self, msg, Highlight};

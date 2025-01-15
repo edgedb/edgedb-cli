@@ -14,7 +14,7 @@ use crate::connect::{Connection, Connector};
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::exit_codes;
-use crate::portable::install;
+use crate::portable::server::install;
 use crate::portable::local::{write_json, InstallInfo, InstanceInfo, Paths};
 use crate::portable::options::{instance_arg, InstanceName, Upgrade};
 use crate::portable::project;

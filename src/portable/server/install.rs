@@ -15,7 +15,7 @@ use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::local::{write_json, InstallInfo};
-use crate::portable::options::Install;
+use crate::portable::server::Install;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::QueryOptions;
 use crate::portable::repository::{download, PackageHash, PackageInfo, Query};

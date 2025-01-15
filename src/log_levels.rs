@@ -2,7 +2,7 @@ use crate::cli::options::Command as Cli;
 use crate::commands::parser::Common;
 use crate::migrations::options::MigrationCmd;
 use crate::options::{Command, Options};
-use crate::portable::options::Command as Server;
+use crate::portable::server::Command as Server;
 use crate::portable::options::InstanceCommand as Instance;
 use crate::portable::project::Command as Project;
 use std::io::Write;

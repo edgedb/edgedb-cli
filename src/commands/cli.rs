@@ -49,7 +49,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Server(cmd) => {
             directory_check::check_and_error()?;
-            portable::server_main(cmd)
+            portable::server::run(cmd)
         }
         Command::Extension(cmd) => {
             directory_check::check_and_error()?;

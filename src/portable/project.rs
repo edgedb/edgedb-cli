@@ -39,7 +39,7 @@ use crate::portable::control;
 use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
-use crate::portable::install;
+use crate::portable::server::install;
 use crate::portable::local::{allocate_port, InstanceInfo, Paths};
 use crate::portable::options::{self, InstanceName, Start, StartConf};
 use crate::portable::platform::optional_docker_check;

@@ -1,8 +1,8 @@
 use anyhow::Context;
 
 use crate::portable::local;
-use crate::portable::options::Info;
 use crate::portable::repository::{Query, QueryOptions};
+use crate::portable::server::Info;
 use crate::portable::ver;
 use crate::table;
 

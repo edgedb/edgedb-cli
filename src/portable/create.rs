@@ -18,7 +18,7 @@ use crate::hint::HintExt;
 use crate::platform;
 use crate::portable::control::{self, ensure_runstate_dir, self_signed_arg};
 use crate::portable::exit_codes;
-use crate::portable::install;
+use crate::portable::server::install;
 use crate::portable::local::{allocate_port, write_json};
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::options::{Create, InstanceName, Start};

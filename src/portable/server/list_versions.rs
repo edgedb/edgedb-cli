@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::portable::local::{self, InstallInfo};
-use crate::portable::options::ListVersions;
+use crate::portable::server::ListVersions;
 use crate::portable::repository::{get_server_packages, Channel, PackageInfo};
 use crate::portable::ver;
 use crate::table::{self, Cell, Row, Table};
