@@ -176,7 +176,6 @@ async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
 }
 
 mod jwt {
-    use std::path::PathBuf;
 
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine;
@@ -231,7 +230,7 @@ mod jwt {
             use crate::cli::env::Env;
             let data_dir = if self.instance_name == "_localdev" {
                 match Env::server_dev_dir()? {
-                    Some(path) => PathBuf::from(path),
+                    Some(path) => path,
                     None => data_dir()?.parent().unwrap().join("_localdev"),
                 }
             } else {

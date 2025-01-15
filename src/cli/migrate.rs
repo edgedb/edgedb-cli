@@ -269,10 +269,9 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if let Ok(exe_path) = env::current_exe() {
         if exe_path.starts_with(base) {
             let new_bin_path = binary_path()?;
-            try_move_bin(&exe_path, &new_bin_path).map_err(|e| {
+            try_move_bin(&exe_path, &new_bin_path).inspect_err(|_| {
                 print::error!("Cannot move executable to new location.");
                 eprintln!("  Try `{BRANDING_CLI_CMD} cli upgrade` instead.");
-                e
             })?;
             update_path(base, &new_bin_path)?;
         }

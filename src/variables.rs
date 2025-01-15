@@ -53,7 +53,7 @@ pub async fn input_variables(
                 let optional = el.cardinality.map(|c| c.is_optional()).unwrap_or(false);
                 let name = match input_language {
                     // SQL params are 1-based, so adjust the base
-                    repl::InputLanguage::SQL => (el
+                    repl::InputLanguage::Sql => (el
                         .name
                         .parse::<i32>()
                         .expect("SQL argument names to be numeric")

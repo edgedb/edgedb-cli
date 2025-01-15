@@ -176,7 +176,7 @@ fn _main() -> anyhow::Result<()> {
             non_interactive::interpret_stdin(
                 &opt,
                 opt.output_format.unwrap_or(repl::OutputFormat::JsonPretty),
-                opt.input_language.unwrap_or(repl::InputLanguage::EdgeQL),
+                opt.input_language.unwrap_or(repl::InputLanguage::EdgeQl),
             )
         }
     }

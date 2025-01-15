@@ -34,8 +34,8 @@ pub const FAILURE_MARKER: &str = "[tx:failed]";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 #[value(rename_all = "lowercase")]
 pub enum InputLanguage {
-    EdgeQL,
-    SQL,
+    EdgeQl,
+    Sql,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -296,8 +296,8 @@ impl State {
         };
 
         let lang = match self.input_language {
-            InputLanguage::EdgeQL => "",
-            InputLanguage::SQL => "[sql]",
+            InputLanguage::EdgeQl => "",
+            InputLanguage::Sql => "[sql]",
         };
 
         let prompt = format!("{location}{lang}{txstate}> ");
@@ -417,18 +417,18 @@ impl std::str::FromStr for InputLanguage {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<InputLanguage, anyhow::Error> {
         match s.to_lowercase().as_str() {
-            "edgeql" => Ok(InputLanguage::EdgeQL),
-            "sql" => Ok(InputLanguage::SQL),
+            "edgeql" => Ok(InputLanguage::EdgeQl),
+            "sql" => Ok(InputLanguage::Sql),
             _ => Err(anyhow::anyhow!("unsupported input language {:?}", s)),
         }
     }
 }
 
-impl Into<ServerInputLanguage> for InputLanguage {
-    fn into(self) -> ServerInputLanguage {
-        match self {
-            InputLanguage::EdgeQL => ServerInputLanguage::EdgeQL,
-            InputLanguage::SQL => ServerInputLanguage::SQL,
+impl From<InputLanguage> for ServerInputLanguage {
+    fn from(val: InputLanguage) -> Self {
+        match val {
+            InputLanguage::EdgeQl => ServerInputLanguage::EdgeQL,
+            InputLanguage::Sql => ServerInputLanguage::SQL,
         }
     }
 }
@@ -447,9 +447,9 @@ impl std::str::FromStr for OutputFormat {
     }
 }
 
-impl Into<IoFormat> for OutputFormat {
-    fn into(self) -> IoFormat {
-        match self {
+impl From<OutputFormat> for IoFormat {
+    fn from(val: OutputFormat) -> Self {
+        match val {
             OutputFormat::Default | OutputFormat::TabSeparated => IoFormat::Binary,
             OutputFormat::JsonLines | OutputFormat::JsonPretty => IoFormat::JsonElements,
             OutputFormat::Json => IoFormat::Json,
@@ -483,8 +483,8 @@ impl InputLanguage {
     pub fn as_str(&self) -> &'static str {
         use InputLanguage::*;
         match self {
-            EdgeQL => "edgeql",
-            SQL => "sql",
+            EdgeQl => "edgeql",
+            Sql => "sql",
         }
     }
 }

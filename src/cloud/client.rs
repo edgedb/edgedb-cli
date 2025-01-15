@@ -83,10 +83,8 @@ impl CloudClient {
     ) -> anyhow::Result<Self> {
         let profile = if let Some(p) = options_profile.clone() {
             Some(p)
-        } else if let Some(p) = edgedb_tokio::env::Env::cloud_profile()? {
-            Some(p)
         } else {
-            None
+            edgedb_tokio::env::Env::cloud_profile()?
         };
         let secret_key = if let Some(secret_key) = options_secret_key {
             Some(secret_key.into())

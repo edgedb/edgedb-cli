@@ -293,12 +293,12 @@ pub fn start_service(instance: &str) -> anyhow::Result<()> {
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("enable")
-        .arg(&unit_name(instance))
+        .arg(unit_name(instance))
         .run()?;
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("start")
-        .arg(&unit_name(instance))
+        .arg(unit_name(instance))
         .run()?;
     Ok(())
 }

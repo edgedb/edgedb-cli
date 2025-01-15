@@ -134,13 +134,13 @@ fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool) -> anyhow::Res
     let server_path = info.server_path()?;
     let status_dir = tempfile::tempdir().context("tempdir failure")?;
     let mut cmd = process::Native::new("edgedb", "edgedb", server_path);
-    cmd.env("NOTIFY_SOCKET", &status_dir.path().join("notify"));
+    cmd.env("NOTIFY_SOCKET", status_dir.path().join("notify"));
     cmd.quiet();
     cmd.arg("--temp-dir");
     cmd.arg("--auto-shutdown-after=0");
     cmd.arg("--default-auth-method=Trust");
     cmd.arg("--emit-server-status")
-        .arg(&status_dir.path().join("status"));
+        .arg(status_dir.path().join("status"));
     cmd.arg("--port=auto");
     cmd.arg("--compiler-pool-mode=on_demand");
     cmd.arg("--tls-cert-mode=generate_self_signed");

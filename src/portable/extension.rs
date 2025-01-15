@@ -103,7 +103,7 @@ fn get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error
 }
 
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
-    let extensions = get_extensions(&options)?;
+    let extensions = get_extensions(options)?;
 
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
