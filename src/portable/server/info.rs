@@ -1,27 +1,20 @@
 use anyhow::Context;
+use edgedb_cli_derive::IntoArgs;
 
 use crate::portable::local;
-use crate::portable::repository::{Query, QueryOptions};
-use crate::portable::server::Info;
+use crate::portable::repository::{Channel, Query, QueryOptions};
 use crate::portable::ver;
 use crate::table;
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "kebab-case")]
-struct JsonInfo<'a> {
-    version: &'a ver::Build,
-    binary_path: Option<&'a str>,
-}
-
-pub fn info(options: &Info) -> anyhow::Result<()> {
+pub fn run(cmd: &Command) -> anyhow::Result<()> {
     // note this assumes that latest is set if no nightly and version
     let (query, _) = Query::from_options(
         QueryOptions {
-            stable: options.latest,
-            nightly: options.nightly,
+            stable: cmd.latest,
+            nightly: cmd.nightly,
             testing: false,
-            channel: options.channel,
-            version: options.version.as_ref(),
+            channel: cmd.channel,
+            version: cmd.version.as_ref(),
         },
         || {
             anyhow::bail!(
@@ -37,15 +30,12 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         .max_by_key(|item| item.version.specific())
         .context("cannot find installed packages maching your criteria")?;
 
-    let item = options
-        .get
-        .as_deref()
-        .or(options.bin_path.then_some("bin-path"));
+    let item = cmd.get.as_deref().or(cmd.bin_path.then_some("bin-path"));
     if let Some(item) = item {
         match item {
             "bin-path" => {
                 let path = inst.server_path()?;
-                if options.json {
+                if cmd.json {
                     let path = path.to_str().context("cannot convert path to a string")?;
                     println!("{}", serde_json::to_string(path)?);
                 } else {
@@ -54,7 +44,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
             }
             "version" => {
                 let version = &inst.version;
-                if options.json {
+                if cmd.json {
                     println!("{}", serde_json::to_string(version)?);
                 } else {
                     println!("{version}");
@@ -62,7 +52,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
             }
             _ => unreachable!(),
         }
-    } else if options.json {
+    } else if cmd.json {
         println!(
             "{}",
             serde_json::to_string_pretty(&JsonInfo {
@@ -77,4 +67,45 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         ]);
     }
     Ok(())
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    /// Display only the server binary path (shortcut to `--get bin-path`).
+    #[arg(long)]
+    pub bin_path: bool,
+    /// Output in JSON format.
+    #[arg(long)]
+    pub json: bool,
+
+    // Display info for latest version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["channel", "version", "nightly"])]
+    pub latest: bool,
+    // Display info for nightly version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["channel", "version", "latest"])]
+    pub nightly: bool,
+    // Display info for specific version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["nightly", "channel", "latest"])]
+    pub version: Option<ver::Filter>,
+    // Display info for specific channel.
+    #[arg(long, value_enum)]
+    #[arg(conflicts_with_all=&["nightly", "version", "latest"])]
+    pub channel: Option<Channel>,
+
+    /// Get specific value:
+    ///
+    /// * `bin-path` -- Path to the server binary
+    /// * `version` -- Server version
+    #[arg(long, value_parser=["bin-path", "version"])]
+    pub get: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+struct JsonInfo<'a> {
+    version: &'a ver::Build,
+    binary_path: Option<&'a str>,
 }

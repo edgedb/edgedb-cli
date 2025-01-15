@@ -4,7 +4,7 @@ use crate::migrations::options::MigrationCmd;
 use crate::options::{Command, Options};
 use crate::portable::instance;
 use crate::portable::project::Command as Project;
-use crate::portable::server::Command as Server;
+use crate::portable::server::Subcommands as Server;
 use std::io::Write;
 
 pub fn init(builder: &mut env_logger::Builder, opt: &Options) {

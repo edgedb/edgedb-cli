@@ -714,7 +714,7 @@ pub fn is_wrapped() -> bool {
     Env::_from_windows().unwrap_or_default().unwrap_or_default()
 }
 
-pub fn install(options: &server::Install) -> anyhow::Result<()> {
+pub fn install(options: &server::install::Command) -> anyhow::Result<()> {
     ensure_wsl()?
         .edgedb()
         .arg("server")
@@ -724,7 +724,7 @@ pub fn install(options: &server::Install) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn uninstall(options: &server::Uninstall) -> anyhow::Result<()> {
+pub fn uninstall(options: &server::uninstall::Command) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("server")
@@ -740,7 +740,7 @@ pub fn uninstall(options: &server::Uninstall) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn list_versions(options: &server::ListVersions) -> anyhow::Result<()> {
+pub fn list_versions(options: &server::list_versions::Command) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("server")
@@ -758,7 +758,7 @@ pub fn list_versions(options: &server::ListVersions) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn info(options: &server::Info) -> anyhow::Result<()> {
+pub fn info(options: &server::info::Command) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb().arg("server").arg("info").args(options).run()?;
     } else {

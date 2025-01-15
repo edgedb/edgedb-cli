@@ -1,18 +1,18 @@
+use edgedb_cli_derive::IntoArgs;
 use fs_err as fs;
 use std::collections::BTreeMap;
 
 use crate::commands::ExitCode;
 use crate::platform::{data_dir, portable_dir, tmp_file_path};
 use crate::portable::exit_codes;
+use crate::portable::instance::status;
 use crate::portable::local;
 use crate::portable::local::InstanceInfo;
-use crate::portable::repository::Query;
-use crate::portable::server::Uninstall;
-use crate::portable::instance::status;
+use crate::portable::repository::{Channel, Query};
 use crate::portable::ver;
 use crate::print::{self, msg, Highlight};
 
-pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
+pub fn run(options: &Command) -> anyhow::Result<()> {
     let mut candidates = local::get_installed()?;
     if options.nightly {
         candidates.retain(|cand| cand.version.is_nightly());
@@ -80,4 +80,26 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
         print::success!("Nothing to uninstall.")
     }
     Ok(())
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    /// Uninstall all versions.
+    #[arg(long)]
+    pub all: bool,
+    /// Uninstall unused versions.
+    #[arg(long)]
+    pub unused: bool,
+    /// Uninstall nightly versions.
+    #[arg(long, conflicts_with_all=&["channel"])]
+    pub nightly: bool,
+    /// Uninstall specific version.
+    pub version: Option<String>,
+    /// Uninstall only versions from a specific channel.
+    #[arg(long, conflicts_with_all=&["nightly"])]
+    #[arg(value_enum)]
+    pub channel: Option<Channel>,
+    /// Increase verbosity.
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
 }
