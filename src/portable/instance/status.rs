@@ -185,7 +185,7 @@ pub struct JsonStatus {
     pub cloud_instance_id: Option<String>,
 }
 
-pub fn status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn run(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
     if cmd.service {
         external_status(cmd)
     } else {

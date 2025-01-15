@@ -11,7 +11,7 @@ use crate::portable::local::InstanceInfo;
 use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::project;
 
-pub fn unlink(cmd: &Command) -> anyhow::Result<()> {
+pub fn run(cmd: &Command) -> anyhow::Result<()> {
     let name = match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => name,
         inst_name => {

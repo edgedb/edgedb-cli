@@ -26,7 +26,7 @@ use crate::portable::windows;
 use crate::print::{self, msg, Highlight};
 use crate::question;
 
-pub fn upgrade(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => upgrade_local_cmd(cmd, &name),
         InstanceName::Cloud {

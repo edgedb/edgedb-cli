@@ -55,6 +55,17 @@ use crate::print::{self, msg, Highlight};
 use crate::question;
 use crate::table;
 
+pub fn run(cmd: &Command, options: &crate::options::Options) -> anyhow::Result<()> {
+    use crate::portable::project::Subcommands::*;
+
+    match &cmd.subcommand {
+        Init(c) => init(c, options),
+        Unlink(c) => unlink(c, options),
+        Info(c) => info(c),
+        Upgrade(c) => upgrade(c, options),
+    }
+}
+
 const DEFAULT_SCHEMA: &str = "\
     module default {\n\
     \n\
@@ -84,13 +95,13 @@ pub struct ProjectInfo {
 #[derive(clap::Args, Debug, Clone)]
 #[command(version = "help_expand")]
 #[command(disable_version_flag = true)]
-pub struct ProjectCommand {
+pub struct Command {
     #[command(subcommand)]
-    pub subcommand: Command,
+    pub subcommand: Subcommands,
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
-pub enum Command {
+pub enum Subcommands {
     /// Initialize project or link to existing unlinked project
     Init(Init),
     /// Clean up project configuration.

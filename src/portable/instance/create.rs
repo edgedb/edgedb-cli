@@ -38,7 +38,7 @@ use crate::question;
 use crate::portable::project::{get_default_branch_name, get_default_user_name};
 use edgedb_tokio::credentials::Credentials;
 
-pub fn create(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error!(
             "`{BRANDING_CLI_CMD} instance create` is not supported in Docker containers."

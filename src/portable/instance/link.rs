@@ -29,7 +29,7 @@ use crate::print;
 use crate::question;
 use crate::tty_password;
 
-pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+pub fn run(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
         anyhow::bail!(
             "{BRANDING_CLOUD} instances cannot be linked\

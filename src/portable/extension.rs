@@ -1,6 +1,5 @@
 use std::ffi::OsStr;
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::Context;
 use edgedb_cli_derive::IntoArgs;
@@ -17,22 +16,22 @@ use crate::portable::repository::{get_platform_extension_packages, Channel};
 use crate::portable::server::install::download_package;
 use crate::table;
 
-pub fn run(c: &ExtensionCommand, o: &Options) -> Result<(), anyhow::Error> {
-    use InstanceExtensionCommand::*;
-    match &c.subcommand {
-        Install(c) => install(c, o),
-        List(c) => list(c, o),
-        ListAvailable(c) => list_available(c, o),
-        Uninstall(c) => uninstall(c, o),
+pub fn run(cmd: &Command, options: &Options) -> Result<(), anyhow::Error> {
+    use Subcommands::*;
+    match &cmd.subcommand {
+        Install(c) => install(c, options),
+        List(c) => list(c, options),
+        ListAvailable(c) => list_available(c, options),
+        Uninstall(c) => uninstall(c, options),
     }
 }
 
 #[derive(clap::Args, Debug, Clone)]
 #[command(version = "help_expand")]
 #[command(disable_version_flag = true)]
-pub struct ExtensionCommand {
+pub struct Command {
     #[command(subcommand)]
-    pub subcommand: InstanceExtensionCommand,
+    pub subcommand: Subcommands,
 
     /// Name of the instance
     #[arg(short = 'I', long)]
@@ -41,7 +40,7 @@ pub struct ExtensionCommand {
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
-pub enum InstanceExtensionCommand {
+pub enum Subcommands {
     /// List installed extensions for a local instance.
     List(ExtensionList),
     /// List available extensions for a local instance.
@@ -243,7 +242,7 @@ fn run_extension_loader(
     command: Option<impl AsRef<OsStr>>,
     file: Option<impl AsRef<OsStr>>,
 ) -> Result<String, anyhow::Error> {
-    let mut cmd = Command::new(extension_installer);
+    let mut cmd = std::process::Command::new(extension_installer);
 
     if let Some(cmd_str) = command {
         cmd.arg(cmd_str);

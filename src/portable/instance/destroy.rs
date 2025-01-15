@@ -15,7 +15,7 @@ use crate::portable::windows;
 use crate::print::{self, msg, Highlight};
 use crate::question;
 
-pub fn destroy(options: &Command, opts: &Options) -> anyhow::Result<()> {
+pub fn run(options: &Command, opts: &Options) -> anyhow::Result<()> {
     let name = instance_arg(&options.name, &options.instance)?;
     let name_str = name.to_string();
     with_projects(&name_str, options.force, print_warning, || {

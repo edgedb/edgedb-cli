@@ -9,7 +9,7 @@ use crate::portable::options::{CloudInstanceBillables, InstanceName};
 use crate::print::msg;
 use crate::question;
 
-pub fn resize(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,

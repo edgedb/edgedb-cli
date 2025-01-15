@@ -770,7 +770,7 @@ pub fn info(options: &server::info::Command) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn reset_password(options: &instance::reset_password::Args, name: &str) -> anyhow::Result<()> {
+pub fn reset_password(options: &instance::reset_password::Command, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance")

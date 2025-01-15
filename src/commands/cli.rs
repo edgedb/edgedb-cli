@@ -61,7 +61,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
-            portable::project_main(cmd, options)
+            portable::project::run(cmd, options)
         }
         Command::Query(q) => {
             directory_check::check_and_warn();

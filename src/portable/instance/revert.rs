@@ -18,7 +18,7 @@ use crate::print::{self, msg, Highlight};
 use crate::process;
 use crate::question;
 
-pub fn revert(options: &Command) -> anyhow::Result<()> {
+pub fn run(options: &Command) -> anyhow::Result<()> {
     use BackupStatus::*;
 
     let name = match instance_arg(&options.name, &options.instance)? {

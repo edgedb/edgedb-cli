@@ -1,7 +1,6 @@
 pub mod config;
-pub(crate) mod exit_codes;
+pub mod exit_codes;
 pub mod local;
-mod main;
 pub mod options;
 pub mod platform;
 pub mod repository;
@@ -17,4 +16,3 @@ pub mod project;
 pub mod server;
 
 pub use instance::reset_password::password_hash;
-pub use main::project_main;

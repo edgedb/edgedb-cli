@@ -361,13 +361,13 @@ pub enum Command {
     /// Show paths for [`BRANDING`] installation
     Info(Info),
     /// Manage project installation
-    Project(project::ProjectCommand),
+    Project(project::Command),
     /// Manage local [`BRANDING`] instances
     Instance(portable::instance::Command),
     /// Manage local [`BRANDING`] installations
     Server(portable::server::Command),
     /// Manage local extensions
-    Extension(portable::extension::ExtensionCommand),
+    Extension(portable::extension::Command),
     /// Generate shell completions
     #[command(name = "_gen_completions")]
     #[command(hide = true)]

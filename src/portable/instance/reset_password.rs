@@ -33,7 +33,7 @@ pub fn generate_password() -> String {
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
-pub struct Args {
+pub struct Command {
     /// Name of instance to reset.
     #[arg(hide = true)]
     #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
@@ -63,7 +63,7 @@ pub struct Args {
     pub quiet: bool,
 }
 
-pub fn reset_password(options: &Args) -> anyhow::Result<()> {
+pub fn run(options: &Command) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
