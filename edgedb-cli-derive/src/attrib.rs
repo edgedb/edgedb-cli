@@ -72,6 +72,7 @@ pub struct FieldAttrs {
     pub short: Option<syn::LitChar>,
     pub subcommand: bool,
     pub flatten: bool,
+    pub from_global: bool,
     pub parse: Option<CliParse>,
     pub default_value: Option<syn::Expr>,
 }
@@ -286,6 +287,7 @@ impl FieldAttrs {
             long: None,
             subcommand: false,
             flatten: false,
+            from_global: false,
             parse: None,
             default_value: None,
         };
@@ -329,6 +331,9 @@ impl FieldAttrs {
                         }
                         Default(name) if name == "subcommand" => {
                             res.subcommand = true;
+                        }
+                        Default(name) if name == "from_global" => {
+                            res.from_global = true;
                         }
                         Default(name) => {
                             emit_error!(&name, "expected `{}=value`", name);

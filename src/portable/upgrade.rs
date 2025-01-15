@@ -107,11 +107,11 @@ fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<(
 
 pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
     match instance_arg(&cmd.name, &cmd.instance)? {
-        InstanceName::Local(name) => upgrade_local_cmd(cmd, name),
+        InstanceName::Local(name) => upgrade_local_cmd(cmd, &name),
         InstanceName::Cloud {
             org_slug: org,
             name,
-        } => upgrade_cloud_cmd(cmd, org, name, opts),
+        } => upgrade_cloud_cmd(cmd, &org, &name, opts),
     }
 }
 

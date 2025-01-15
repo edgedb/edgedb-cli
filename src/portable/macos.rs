@@ -461,6 +461,6 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
     if options.follow {
         cmd.arg("-F");
     }
-    cmd.arg(log_file(name)?);
+    cmd.arg(log_file(&name)?);
     cmd.no_proxy().run()
 }

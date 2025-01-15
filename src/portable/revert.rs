@@ -24,7 +24,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
-                return crate::portable::windows::revert(options, name);
+                return crate::portable::windows::revert(options, &name);
             } else {
                 name
             }
@@ -34,7 +34,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             return Err(ExitCode::new(1))?;
         }
     };
-    let status = instance_status(name)?;
+    let status = instance_status(&name)?;
     let (backup_info, old_inst) = match status.backup {
         Absent => anyhow::bail!("cannot find backup directory to revert"),
         Exists {
@@ -85,7 +85,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         }
     }
 
-    if let Err(e) = control::do_stop(name) {
+    if let Err(e) = control::do_stop(&name) {
         print::error!("Error stopping service: {e:#}");
         if !options.no_confirm {
             let q = question::Confirm::new("Do you want to proceed?");
@@ -99,7 +99,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     install::specific(&old_inst.get_version()?.specific())
         .context(concatcp!("error installing old ", BRANDING))?;
 
-    let paths = Paths::get(name)?;
+    let paths = Paths::get(&name)?;
     let tmp_path = tmp_file_path(&paths.data_dir);
     fs::rename(&paths.data_dir, &tmp_path)?;
     fs::rename(&paths.backup_dir, &paths.data_dir)?;

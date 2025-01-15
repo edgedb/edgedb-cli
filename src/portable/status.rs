@@ -130,7 +130,7 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => todo!(),
     };
-    let meta = &(InstanceInfo::read(name)?);
+    let meta = &(InstanceInfo::read(&name)?);
     if cfg!(windows) {
         windows::external_status(meta)
     } else if cfg!(target_os = "macos") {
@@ -231,13 +231,13 @@ fn normal_status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result
             org_slug: org,
             name,
         } => {
-            return cloud_status(cmd, org, name, opts);
+            return cloud_status(cmd, &org, &name, opts);
         }
     };
-    let meta = InstanceInfo::try_read(name).transpose();
+    let meta = InstanceInfo::try_read(&name).transpose();
     if let Some(meta) = meta {
-        let paths = Paths::get(name)?;
-        let status = status_from_meta(name, &paths, meta);
+        let paths = Paths::get(&name)?;
+        let status = status_from_meta(&name, &paths, meta);
         if cmd.debug {
             println!("{status:#?}");
             Ok(())
@@ -362,7 +362,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
         InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance"),
     };
 
-    let status = remote_status_with_feedback(name, options.quiet)?;
+    let status = remote_status_with_feedback(&name, options.quiet)?;
     if options.service {
         println!("Remote instance");
     } else if options.debug {
