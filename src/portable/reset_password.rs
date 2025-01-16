@@ -41,7 +41,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
-                return crate::portable::windows::reset_password(options, name);
+                return crate::portable::windows::reset_password(options, &name);
             } else {
                 name
             }
@@ -51,7 +51,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
             return Err(ExitCode::new(1))?;
         }
     };
-    let credentials_file = credentials::path(name)?;
+    let credentials_file = credentials::path(&name)?;
     let (creds, save, user) = if credentials_file.exists() {
         let creds = read_credentials(&credentials_file)?;
         let user = options.user.clone().unwrap_or_else(|| creds.user.clone());
@@ -85,7 +85,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         generate_password()
     };
 
-    let inst = InstanceInfo::read(name)?;
+    let inst = InstanceInfo::read(&name)?;
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?

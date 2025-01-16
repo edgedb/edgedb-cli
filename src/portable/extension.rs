@@ -3,25 +3,24 @@ use std::path::Path;
 use std::process::Command;
 
 use anyhow::Context;
-use edgedb_protocol::QueryResult;
 use log::trace;
 use prettytable::{row, Table};
 
-use super::options::{ExtensionInstall, ExtensionList, ExtensionListAvailable, ExtensionUninstall};
-
 use crate::branding::BRANDING_CLOUD;
-use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::options::Options;
 use crate::portable::install::download_package;
 use crate::portable::local::InstanceInfo;
-use crate::portable::options::{instance_arg, ExtensionCommand, InstanceName};
+use crate::portable::options::{
+    instance_arg, ExtensionCommand, ExtensionInstall, ExtensionList, ExtensionListAvailable,
+    ExtensionUninstall, InstanceExtensionCommand, InstanceName,
+};
 use crate::portable::platform::get_server;
 use crate::portable::repository::{get_platform_extension_packages, Channel};
 use crate::table;
 
-pub fn extension_main(c: &ExtensionCommand, o: &Options) -> Result<(), anyhow::Error> {
-    use crate::portable::options::InstanceExtensionCommand::*;
+pub fn run(c: &ExtensionCommand, o: &Options) -> Result<(), anyhow::Error> {
+    use InstanceExtensionCommand::*;
     match &c.subcommand {
         Install(c) => install(c, o),
         List(c) => list(c, o),
@@ -30,9 +29,7 @@ pub fn extension_main(c: &ExtensionCommand, o: &Options) -> Result<(), anyhow::E
     }
 }
 
-fn get_local_instance(options: &Options) -> Result<InstanceInfo, anyhow::Error> {
-    let instance = &options.conn_options.instance;
-
+fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, anyhow::Error> {
     let name = match instance_arg(&None, instance)? {
         InstanceName::Local(name) => name,
         inst_name => {
@@ -45,7 +42,7 @@ fn get_local_instance(options: &Options) -> Result<InstanceInfo, anyhow::Error> 
             })?;
         }
     };
-    let Some(inst) = InstanceInfo::try_read(name)? else {
+    let Some(inst) = InstanceInfo::try_read(&name)? else {
         return Err(anyhow::anyhow!(
             "cannot install extensions in {BRANDING_CLOUD} instance {}.",
             name
@@ -57,10 +54,10 @@ fn get_local_instance(options: &Options) -> Result<InstanceInfo, anyhow::Error> 
 
 type ExtensionInfo = (String, String);
 
-fn _get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
+fn get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
     if let InstanceName::Local(name) = instance_arg(&None, &options.conn_options.instance)? {
         // if local instance, check instance info
-        let instance_info = InstanceInfo::try_read(name)?;
+        let instance_info = InstanceInfo::try_read(&name)?;
         if let Some(instance_info) = instance_info {
             let extension_loader = instance_info.extension_loader_path()?;
             let output =
@@ -106,7 +103,7 @@ fn _get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Erro
 }
 
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
-    let extensions = _get_extensions(options)?;
+    let extensions = get_extensions(&options)?;
 
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
@@ -119,8 +116,8 @@ fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn uninstall(uninstall: &ExtensionUninstall, options: &Options) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(options)?;
+fn uninstall(uninstall: &ExtensionUninstall, _options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(&uninstall.instance)?;
     let extension_loader = inst.extension_loader_path()?;
     run_extension_loader(
         &extension_loader,
@@ -130,8 +127,8 @@ fn uninstall(uninstall: &ExtensionUninstall, options: &Options) -> Result<(), an
     Ok(())
 }
 
-fn install(install: &ExtensionInstall, options: &Options) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(options)?;
+fn install(install: &ExtensionInstall, _options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(&install.instance)?;
     let extension_loader = inst.extension_loader_path()?;
 
     let version = inst.get_version()?.specific();
@@ -204,8 +201,8 @@ fn run_extension_loader(
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-fn list_available(list: &ExtensionListAvailable, options: &Options) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(options)?;
+fn list_available(list: &ExtensionListAvailable, _options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(&list.instance)?;
 
     let version = inst.get_version()?.specific();
     let channel = list.channel.unwrap_or(Channel::from_version(&version)?);

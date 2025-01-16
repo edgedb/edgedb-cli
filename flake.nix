@@ -40,7 +40,7 @@
             buildInputs = common ++ [
               (fenix_pkgs.fromToolchainFile {
                 file = ./rust-toolchain.toml;
-                sha256 = "sha256-opUgs6ckUQCyDxcB9Wy51pqhd0MPGHUVbwRKKPGiwZU=";
+                sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
               })
             ];
           };

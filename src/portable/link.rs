@@ -439,7 +439,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
             })?;
         }
     };
-    let inst = InstanceInfo::try_read(name)?;
+    let inst = InstanceInfo::try_read(&name)?;
     if inst.is_some() {
         return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)
             .with_hint(|| {
@@ -449,8 +449,8 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
             })
             .into());
     }
-    with_projects(name, options.force, print_warning, || {
-        let path = credentials::path(name)?;
+    with_projects(&name, options.force, print_warning, || {
+        let path = credentials::path(&name)?;
         fs::remove_file(&path)
             .with_context(|| format!("Credentials for {name} missing from {path:?}"))
     })?;

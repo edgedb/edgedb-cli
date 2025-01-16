@@ -221,7 +221,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
-                return windows::start(options, name);
+                return windows::start(options, &name);
             } else {
                 name
             }
@@ -231,7 +231,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             return Err(ExitCode::new(1))?;
         }
     };
-    let meta = InstanceInfo::read(name)?;
+    let meta = InstanceInfo::read(&name)?;
     ensure_runstate_dir(&meta.name)?;
     if options.foreground || options.managed_by.is_some() {
         let lock_path = lock_file(&meta.name)?;
@@ -258,7 +258,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
                     locked_by.escape_default()
                 );
                 needs_restart = true;
-                do_stop(name).context("cannot stop service")?;
+                do_stop(&name).context("cannot stop service")?;
             } else {
                 anyhow::bail!(
                     "Process is already running by {}. \
@@ -407,7 +407,7 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
-                return windows::stop(options, name);
+                return windows::stop(options, &name);
             } else {
                 name
             }
@@ -417,7 +417,7 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
             return Err(ExitCode::new(1))?;
         }
     };
-    let meta = InstanceInfo::read(name)?;
+    let meta = InstanceInfo::read(&name)?;
     do_stop(&meta.name)
 }
 
@@ -516,13 +516,15 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
 pub fn restart(cmd: &Restart, options: &crate::Options) -> anyhow::Result<()> {
     match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => {
-            let meta = InstanceInfo::read(name)?;
+            let meta = InstanceInfo::read(&name)?;
             do_restart(&meta)
         }
         InstanceName::Cloud {
             org_slug,
             name: inst_name,
-        } => crate::cloud::ops::restart_cloud_instance(inst_name, org_slug, &options.cloud_options),
+        } => {
+            crate::cloud::ops::restart_cloud_instance(&inst_name, &org_slug, &options.cloud_options)
+        }
     }
 }
 

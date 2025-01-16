@@ -59,7 +59,7 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
                 return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
             }
         }
-        match do_destroy(options, opts, name) {
+        match do_destroy(options, opts, &name) {
             Ok(()) => Ok(()),
             Err(e) if e.is::<InstanceNotFound>() => {
                 print::error!("{e}");

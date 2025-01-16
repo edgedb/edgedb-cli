@@ -428,9 +428,9 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
             return Err(ExitCode::new(1))?;
         }
     };
-    if detect_systemd(name) {
+    if detect_systemd(&name) {
         let mut cmd = process::Native::new("logs", "journalctl", "journalctl");
-        cmd.arg("--user-unit").arg(unit_name(name));
+        cmd.arg("--user-unit").arg(unit_name(&name));
         if let Some(n) = options.tail {
             cmd.arg(format!("--lines={n}"));
         }
@@ -446,7 +446,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         if options.follow {
             cmd.arg("-F");
         }
-        cmd.arg(log_file(name)?);
+        cmd.arg(log_file(&name)?);
         cmd.no_proxy().run()
     }
 }

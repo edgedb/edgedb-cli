@@ -34,6 +34,12 @@ pub struct ServerCommand {
 pub struct ServerInstanceCommand {
     #[command(subcommand)]
     pub subcommand: InstanceCommand,
+
+    /// Name of the instance
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(global = true)]
+    pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -86,10 +92,10 @@ pub struct ExtensionCommand {
     #[command(subcommand)]
     pub subcommand: InstanceExtensionCommand,
 
-    #[command(flatten)]
-    #[deprecated]
-    // This is here for --help only. Values gets parsed by the global args.
-    pub _conn_opts: ConnectionOptions,
+    /// Name of the instance
+    #[arg(short = 'I', long)]
+    #[arg(global = true)]
+    pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -105,7 +111,10 @@ pub enum InstanceExtensionCommand {
 }
 
 #[derive(clap::Args, Debug, Clone)]
-pub struct ExtensionList {}
+pub struct ExtensionList {
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+}
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ExtensionListAvailable {
@@ -115,10 +124,16 @@ pub struct ExtensionListAvailable {
     /// Specify the slot override (for development use)
     #[arg(long, hide = true)]
     pub slot: Option<String>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ExtensionInstall {
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
     /// Name of the extension to install
     #[arg(short = 'E', long)]
     pub extension: String,
@@ -135,6 +150,9 @@ pub struct ExtensionInstall {
 /// Represents the options for uninstalling an extension from a local EdgeDB instance.
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ExtensionUninstall {
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
     /// The name of the extension to uninstall.
     #[arg(short = 'E', long)]
     pub extension: String,
@@ -150,6 +168,40 @@ pub enum Command {
     Uninstall(Uninstall),
     /// List available and installed versions of the server.
     ListVersions(ListVersions),
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Info {
+    /// Display only the server binary path (shortcut to `--get bin-path`).
+    #[arg(long)]
+    pub bin_path: bool,
+    /// Output in JSON format.
+    #[arg(long)]
+    pub json: bool,
+
+    // Display info for latest version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["channel", "version", "nightly"])]
+    pub latest: bool,
+    // Display info for nightly version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["channel", "version", "latest"])]
+    pub nightly: bool,
+    // Display info for specific version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["nightly", "channel", "latest"])]
+    pub version: Option<ver::Filter>,
+    // Display info for specific channel.
+    #[arg(long, value_enum)]
+    #[arg(conflicts_with_all=&["nightly", "version", "latest"])]
+    pub channel: Option<Channel>,
+
+    /// Get specific value:
+    ///
+    /// * `bin-path` -- Path to the server binary
+    /// * `version` -- Server version
+    #[arg(long, value_parser=["bin-path", "version"])]
+    pub get: Option<String>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
@@ -348,9 +400,7 @@ pub struct Destroy {
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance to destroy.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Verbose output.
@@ -402,14 +452,12 @@ pub struct Link {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct Unlink {
-    /// Specify remote instance name.
+    /// Remote instance name.
     #[arg(hide = true)]
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Specify remote instance name.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Force destroy even if instance is referred to by a project.
@@ -424,9 +472,7 @@ pub struct Start {
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance to start.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Start server in the foreground.
@@ -464,9 +510,7 @@ pub struct Stop {
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance to stop.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 }
 
@@ -477,9 +521,7 @@ pub struct Restart {
     #[arg(value_hint=ValueHint::Other)]
     pub name: Option<InstanceName>,
 
-    /// Name of instance to restart.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 }
 
@@ -517,14 +559,12 @@ pub struct Status {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
 
-    /// Name of instance.
+    /// Name of the instance
     #[arg(hide = true)]
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Show current systems service info.
@@ -552,14 +592,12 @@ pub struct Status {
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Logs {
-    /// Name of instance.
+    /// Name of the instance
     #[arg(hide = true)]
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Number of lines to show.
@@ -697,9 +735,7 @@ pub struct Upgrade {
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Instance to upgrade.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Verbose output.
@@ -728,9 +764,7 @@ pub struct Revert {
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance to revert.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// Do not check if upgrade is in progress.
@@ -749,9 +783,7 @@ pub struct ResetPassword {
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
-    /// Name of instance to reset.
-    #[arg(short = 'I', long)]
-    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
     /// User to change password for (default obtained from credentials file).
@@ -773,40 +805,6 @@ pub struct ResetPassword {
     /// Do not print any messages, only indicate success by exit status.
     #[arg(long)]
     pub quiet: bool,
-}
-
-#[derive(clap::Args, IntoArgs, Debug, Clone)]
-pub struct Info {
-    /// Display only the server binary path (shortcut to `--get bin-path`).
-    #[arg(long)]
-    pub bin_path: bool,
-    /// Output in JSON format.
-    #[arg(long)]
-    pub json: bool,
-
-    // Display info for latest version.
-    #[arg(long)]
-    #[arg(conflicts_with_all=&["channel", "version", "nightly"])]
-    pub latest: bool,
-    // Display info for nightly version.
-    #[arg(long)]
-    #[arg(conflicts_with_all=&["channel", "version", "latest"])]
-    pub nightly: bool,
-    // Display info for specific version.
-    #[arg(long)]
-    #[arg(conflicts_with_all=&["nightly", "channel", "latest"])]
-    pub version: Option<ver::Filter>,
-    // Display info for specific channel.
-    #[arg(long, value_enum)]
-    #[arg(conflicts_with_all=&["nightly", "version", "latest"])]
-    pub channel: Option<Channel>,
-
-    /// Get specific value:
-    ///
-    /// * `bin-path` -- Path to the server binary
-    /// * `version` -- Server version
-    #[arg(long, value_parser=["bin-path", "version"])]
-    pub get: Option<String>,
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -915,10 +913,10 @@ impl IntoArg for &InstanceName {
     }
 }
 
-pub fn instance_arg<'x>(
-    positional: &'x Option<InstanceName>,
-    named: &'x Option<InstanceName>,
-) -> anyhow::Result<&'x InstanceName> {
+pub fn instance_arg(
+    positional: &Option<InstanceName>,
+    named: &Option<InstanceName>,
+) -> anyhow::Result<InstanceName> {
     if let Some(name) = positional {
         if named.is_some() {
             msg!(
@@ -933,11 +931,29 @@ pub fn instance_arg<'x>(
             "Specifying instance name as positional argument is \
             deprecated. Use `-I {name}` instead."
         );
-        return Ok(name);
+        return Ok(name.clone());
     }
     if let Some(name) = named {
-        return Ok(name);
+        return Ok(name.clone());
     }
+
+    {
+        // infer instance from current project
+        let bld = edgedb_tokio::Builder::new();
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let config = rt.block_on(bld.build_env())?;
+
+        let instance = config.instance_name().cloned();
+
+        if let Some(instance) = instance {
+            return Ok(instance.into());
+        }
+    };
+
     msg!(
         "{} Instance name argument is required, use '-I name'",
         err_marker()
