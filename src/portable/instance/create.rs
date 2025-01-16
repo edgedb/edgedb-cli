@@ -35,7 +35,6 @@ use crate::print::{self, err_marker, msg, Highlight};
 use crate::process::{self, IntoArg};
 use crate::question;
 
-use crate::portable::project::{get_default_branch_name, get_default_user_name};
 use edgedb_tokio::credentials::Credentials;
 
 pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -612,5 +611,21 @@ pub fn create_service(meta: &InstanceInfo) -> anyhow::Result<()> {
         windows::create_service(meta)
     } else {
         anyhow::bail!("creating a service is not supported on the platform");
+    }
+}
+
+pub fn get_default_branch_name(version: &Specific) -> String {
+    if version.major >= 5 {
+        return String::from("main");
+    }
+
+    String::from("edgedb")
+}
+
+pub fn get_default_user_name(version: &Specific) -> &'static str {
+    if version.major >= 6 {
+        BRANDING_DEFAULT_USERNAME
+    } else {
+        BRANDING_DEFAULT_USERNAME_LEGACY
     }
 }
