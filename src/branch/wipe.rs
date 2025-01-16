@@ -1,29 +1,28 @@
 use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
-use crate::branch::option::Wipe;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
 use crate::portable::exit_codes;
 use crate::{print, question};
 
 pub async fn main(
-    options: &Wipe,
+    cmd: &Command,
     _context: &Context,
     connector: &mut Connector,
 ) -> anyhow::Result<()> {
-    let connection = connect_if_branch_exists(connector.branch(&options.target_branch)?).await?;
+    let connection = connect_if_branch_exists(connector.branch(&cmd.target_branch)?).await?;
 
     if connection.is_none() {
-        anyhow::bail!("Branch '{}' doesn't exist", &options.target_branch)
+        anyhow::bail!("Branch '{}' doesn't exist", &cmd.target_branch)
     }
 
     let mut connection = connection.unwrap();
 
-    if !options.non_interactive {
+    if !cmd.non_interactive {
         let q = question::Confirm::new_dangerous(format!(
             "Do you really want to wipe \
                     the contents of the branch {:?}?",
-            options.target_branch
+            cmd.target_branch
         ));
         if !connection.ping_while(q.async_ask()).await? {
             print::error!("Canceled by user.");
@@ -36,4 +35,15 @@ pub async fn main(
     print::completion(status);
 
     Ok(())
+}
+
+/// Wipes all data within a branch.
+#[derive(clap::Args, Debug, Clone)]
+pub struct Command {
+    /// The branch to wipe.
+    pub target_branch: String,
+
+    /// Wipe without asking for confirmation.
+    #[arg(long)]
+    pub non_interactive: bool,
 }

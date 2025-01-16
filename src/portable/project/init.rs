@@ -42,6 +42,7 @@ use crate::print::{self, msg, Highlight};
 use crate::question;
 use crate::table;
 
+#[allow(clippy::collapsible_else_if)]
 pub fn run(options: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error!("`{BRANDING_CLI_CMD} project init` is not supported in Docker containers.");

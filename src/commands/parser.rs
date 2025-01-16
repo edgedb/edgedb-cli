@@ -136,18 +136,18 @@ pub struct Branching {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum BranchingCmd {
     /// Create a new branch
-    Create(crate::branch::option::Create),
+    Create(crate::branch::create::Command),
     /// Delete a branch along with its data
-    Drop(crate::branch::option::Drop),
+    Drop(crate::branch::drop::Command),
     /// Delete a branch's data and reset its schema while preserving the branch
     /// itself (its `cfg::DatabaseConfig`) and existing migration scripts
-    Wipe(crate::branch::option::Wipe),
+    Wipe(crate::branch::wipe::Command),
     /// List all branches.
-    List(crate::branch::option::List),
+    List(crate::branch::list::Command),
     /// Switches the current branch to a different one.
-    Switch(crate::branch::option::Switch),
+    Switch(crate::branch::switch::Command),
     /// Renames a branch.
-    Rename(crate::branch::option::Rename),
+    Rename(crate::branch::rename::Command),
 }
 
 #[derive(clap::Args, Clone, Debug)]

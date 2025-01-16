@@ -1,5 +1,4 @@
 use crate::branch::context::Context;
-use crate::branch::option::Drop;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::ExitCode;
 use crate::connect::Connection;
@@ -7,7 +6,7 @@ use crate::portable::exit_codes;
 use crate::{print, question};
 
 pub async fn main(
-    options: &Drop,
+    options: &Command,
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
@@ -45,4 +44,19 @@ pub async fn main(
     print::completion(status);
 
     Ok(())
+}
+
+/// Drops an existing branch, removing it and its data.
+#[derive(clap::Args, Debug, Clone)]
+pub struct Command {
+    /// The branch to drop.
+    pub target_branch: String,
+
+    /// Drop the branch without asking for confirmation.
+    #[arg(long)]
+    pub non_interactive: bool,
+
+    /// Close any existing connections to the branch before dropping it.
+    #[arg(long)]
+    pub force: bool,
 }

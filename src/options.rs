@@ -18,7 +18,7 @@ use edgedb_cli_derive::IntoArgs;
 use crate::cli;
 use crate::cli::options::CliCommand;
 
-use crate::branch::option::BranchCommand;
+use crate::branch;
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
@@ -385,7 +385,7 @@ pub enum Command {
     /// a project's ``dbschema`` directory, applying them in real time.
     Watch(WatchCommand),
     /// Manage branches
-    Branch(BranchCommand),
+    Branch(branch::Command),
     /// Generate a `SCRAM-SHA-256` hash for a password.
     HashPassword(HashPasswordCommand),
 }

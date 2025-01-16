@@ -1,11 +1,10 @@
 use termimad::crossterm::style::Stylize;
 
 use crate::branch::context::Context;
-use crate::branch::option::Current;
 use crate::connect::Connection;
 
-pub async fn main(
-    options: &Current,
+pub async fn run(
+    options: &Command,
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
@@ -17,4 +16,13 @@ pub async fn main(
         eprintln!("The current branch is '{}'", current_branch.green());
     }
     Ok(())
+}
+
+/// Prints the current branch.
+#[derive(clap::Args, Clone, Debug)]
+pub struct Command {
+    /// Print as plain text output to stdout. Prints nothing instead of erroring if the current branch
+    /// can't be resolved.
+    #[arg(long)]
+    pub plain: bool,
 }

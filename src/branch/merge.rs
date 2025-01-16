@@ -1,6 +1,5 @@
 use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
-use crate::branch::option::Merge;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::migrations;
@@ -9,7 +8,7 @@ use crate::migrations::merge::{
 };
 
 pub async fn main(
-    options: &Merge,
+    cmd: &Command,
     context: &Context,
     source_connection: &mut Connection,
     cli_opts: &Options,
@@ -20,15 +19,15 @@ pub async fn main(
         .await?
         .ok_or_else(|| anyhow::anyhow!("Merge must be used within a project"))?;
 
-    if options.target_branch == current_branch {
+    if cmd.target_branch == current_branch {
         anyhow::bail!("Cannot merge the current branch into its self");
     }
 
     let mut connector = cli_opts.conn_params.clone();
     let mut target_connection =
-        match connect_if_branch_exists(connector.branch(&options.target_branch)?).await? {
+        match connect_if_branch_exists(connector.branch(&cmd.target_branch)?).await? {
             Some(connection) => connection,
-            None => anyhow::bail!("The branch '{}' doesn't exist", options.target_branch),
+            None => anyhow::bail!("The branch '{}' doesn't exist", cmd.target_branch),
         };
 
     let migration_context = migrations::Context::for_project(&project_config)?;
@@ -43,7 +42,7 @@ pub async fn main(
 
     write_merge_migrations(&migration_context, &mut merge_migrations).await?;
 
-    if !options.no_apply {
+    if !cmd.no_apply {
         eprintln!("Applying migrations...");
         apply_merge_migration_files(&merge_migrations, &migration_context, source_connection)
             .await?;
@@ -52,4 +51,15 @@ pub async fn main(
     eprintln!("Done!");
 
     Ok(())
+}
+
+/// Merges a branch into this one via a fast-forward merge.
+#[derive(clap::Args, Clone, Debug)]
+pub struct Command {
+    /// The branch to merge into this one.
+    pub target_branch: String,
+
+    /// Skip applying migrations generated from the merge.
+    #[arg(long)]
+    pub no_apply: bool,
 }

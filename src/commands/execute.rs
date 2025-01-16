@@ -2,9 +2,11 @@ use crate::connect::Connection;
 use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::analyze;
+use crate::branch;
 use crate::branding::BRANDING;
+use crate::commands;
 use crate::commands::parser::{Common, DatabaseCmd, DescribeCmd, ListCmd};
-use crate::commands::{self, branching, CommandResult, Options};
+use crate::commands::Options;
 use crate::migrations;
 use crate::migrations::options::MigrationCmd;
 use crate::print;
@@ -13,7 +15,7 @@ pub async fn common(
     cli: &mut Connection,
     cmd: &Common,
     options: &Options,
-) -> Result<Option<CommandResult>, anyhow::Error> {
+) -> Result<branch::CommandResult, anyhow::Error> {
     use Common::*;
     match cmd {
         List(c) => match &c.subcommand {
@@ -112,7 +114,10 @@ pub async fn common(
                 commands::database::wipe(cli, w, options).await?;
             }
         },
-        Branching(branching) => return branching::main(cli, &branching.subcommand, options).await,
+        Branching(cmd) => {
+            let cmd = branch::Subcommand::from(cmd.subcommand.clone());
+            return branch::do_run(&cmd, options, Some(cli)).await;
+        }
         Migrate(params) => {
             migrations::migrate(cli, options, params).await?;
         }
@@ -143,5 +148,5 @@ pub async fn common(
             }
         },
     }
-    Ok(None)
+    Ok(branch::CommandResult::default())
 }

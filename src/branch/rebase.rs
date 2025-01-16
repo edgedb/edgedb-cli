@@ -2,7 +2,6 @@ use colorful::Colorful;
 
 use crate::branch::connections::get_connection_to_modify;
 use crate::branch::context::Context;
-use crate::branch::option::Rebase;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::migrations::rebase::{
@@ -13,7 +12,7 @@ use crate::{migrations, print};
 use uuid::Uuid;
 
 pub async fn main(
-    options: &Rebase,
+    options: &Command,
     context: &Context,
     source_connection: &mut Connection,
     cli_opts: &Options,
@@ -64,6 +63,18 @@ pub async fn main(
         }
         Ok(_) => anyhow::Ok(()),
     }
+}
+
+/// Creates a new branch that is based on the target branch, but also contains any new migrations
+/// on the current branch. Warning: data stored in current branch will be deleted.
+#[derive(clap::Args, Debug, Clone)]
+pub struct Command {
+    /// The branch to rebase the current branch to.
+    pub target_branch: String,
+
+    /// Skip applying migrations generated from the rebase.
+    #[arg(long)]
+    pub no_apply: bool,
 }
 
 async fn rebase(

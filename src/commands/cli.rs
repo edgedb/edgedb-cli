@@ -75,8 +75,9 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::Cloud(c) => cloud_main(c, &options.cloud_options),
         Command::Watch(c) => watch::watch(options, c),
         Command::Branch(c) => {
-            let cmdopt = init_command_opts(options)?;
-            branch::branch_main(&cmdopt, c)
+            let opts = init_command_opts(options)?;
+            branch::run(&opts, c)?;
+            Ok(())
         }
         Command::HashPassword(cmd) => {
             println!("{}", portable::password_hash(&cmd.password));
