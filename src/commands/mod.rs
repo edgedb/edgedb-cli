@@ -1,7 +1,5 @@
 pub mod backslash;
-mod branching;
 pub mod cli;
-mod command_result;
 mod configure;
 mod database;
 mod describe;
@@ -28,7 +26,6 @@ mod psql;
 mod restore;
 mod ui;
 
-pub use self::command_result::CommandResult;
 pub use self::configure::configure;
 pub use self::describe::describe;
 pub use self::describe_schema::describe_schema;

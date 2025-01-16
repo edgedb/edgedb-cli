@@ -9,9 +9,10 @@ use crate::branding::BRANDING;
 use crate::commands::ExitCode;
 use crate::platform::{current_exe, detect_ipv6};
 use crate::platform::{data_dir, get_current_uid, home_dir};
+use crate::portable::instance::control;
+use crate::portable::instance::status::Service;
 use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
-use crate::portable::options::{instance_arg, InstanceName, Logs};
-use crate::portable::status::Service;
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::print::{self, msg, Highlight};
 use crate::process;
 
@@ -449,7 +450,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn logs(options: &Logs) -> anyhow::Result<()> {
+pub fn logs(options: &control::Logs) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => todo!(),

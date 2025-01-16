@@ -18,7 +18,7 @@ use edgedb_cli_derive::IntoArgs;
 use crate::cli;
 use crate::cli::options::CliCommand;
 
-use crate::branch::option::BranchCommand;
+use crate::branch;
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
@@ -361,13 +361,13 @@ pub enum Command {
     /// Show paths for [`BRANDING`] installation
     Info(Info),
     /// Manage project installation
-    Project(project::ProjectCommand),
+    Project(project::Command),
     /// Manage local [`BRANDING`] instances
-    Instance(portable::options::ServerInstanceCommand),
+    Instance(portable::instance::Command),
     /// Manage local [`BRANDING`] installations
-    Server(portable::options::ServerCommand),
+    Server(portable::server::Command),
     /// Manage local extensions
-    Extension(portable::options::ExtensionCommand),
+    Extension(portable::extension::Command),
     /// Generate shell completions
     #[command(name = "_gen_completions")]
     #[command(hide = true)]
@@ -385,7 +385,7 @@ pub enum Command {
     /// a project's ``dbschema`` directory, applying them in real time.
     Watch(WatchCommand),
     /// Manage branches
-    Branch(BranchCommand),
+    Branch(branch::Command),
     /// Generate a `SCRAM-SHA-256` hash for a password.
     HashPassword(HashPasswordCommand),
 }
@@ -715,8 +715,6 @@ fn print_full_connection_options() {
 }
 
 fn term_width() -> usize {
-    use std::cmp;
-
     // clap::Command::max_term_width() works poorly in conjunction
     // with  clap::Command::term_width(); it appears that one call
     // disables the effect of the other. Therefore we want to
@@ -725,7 +723,7 @@ fn term_width() -> usize {
 
     let width = terminal_size::terminal_size().map_or(80, |(terminal_size::Width(w), _)| w.into());
 
-    cmp::max(cmp::min(width, MAX_TERM_WIDTH), MIN_TERM_WIDTH)
+    width.clamp(MIN_TERM_WIDTH, MAX_TERM_WIDTH)
 }
 
 impl Options {
@@ -822,7 +820,7 @@ impl Options {
             Some(Command::Query(Query {
                 queries: Some(vec![query]),
                 output_format,
-                input_language: Some(InputLanguage::EdgeQL),
+                input_language: Some(InputLanguage::EdgeQl),
                 file: None,
                 conn: args.conn.clone(),
             }))
@@ -855,7 +853,7 @@ impl Options {
             debug_print_frames: args.debug_print_frames,
             debug_print_descriptors: args.debug_print_descriptors,
             debug_print_codecs: args.debug_print_codecs,
-            input_language: Some(InputLanguage::EdgeQL),
+            input_language: Some(InputLanguage::EdgeQl),
             output_format: if args.tab_separated {
                 Some(OutputFormat::TabSeparated)
             } else if args.json {

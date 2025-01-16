@@ -23,11 +23,9 @@ use crate::cli::logo::print_logo;
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
-use crate::platform::current_exe;
-use crate::platform::{binary_path, config_dir, home_dir};
+use crate::platform::{binary_path, config_dir, current_exe, home_dir};
 use crate::portable::platform;
-use crate::portable::project::project_dir;
-use crate::portable::project::{self, Init};
+use crate::portable::project;
 use crate::print::{self, msg};
 use crate::print_markdown;
 use crate::process;
@@ -435,7 +433,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     }
 
     let base_dir = env::current_dir().context("failed to get current directory")?;
-    if let Some((project_dir, config_path)) = project_dir(Some(&base_dir))? {
+    if let Some((project_dir, config_path)) = project::project_dir(Some(&base_dir))? {
         if get_stash_path(&project_dir)?.exists() {
             log::info!("Project already initialized. Skipping...");
             return Ok(Already);
@@ -463,7 +461,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             cloud_secret_key: None,
             cloud_profile: None,
         };
-        let init = Init {
+        let init = project::init::Command {
             project_dir: None,
             server_version: None,
             server_instance: None,
@@ -474,7 +472,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud_opts: options.clone(),
         };
-        project::init_existing(&init, &project_dir, config_path, &options)?;
+        project::init::init_existing(&init, &project_dir, config_path, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)

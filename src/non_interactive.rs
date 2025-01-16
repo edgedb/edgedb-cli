@@ -50,7 +50,7 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
     let lang = if let Some(l) = q.input_language {
         l
     } else {
-        repl::InputLanguage::EdgeQL
+        repl::InputLanguage::EdgeQl
     };
 
     if let Some(filename) = &q.file {

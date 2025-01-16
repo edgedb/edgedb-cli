@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 use anyhow::Context;
+use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
@@ -15,8 +16,8 @@ use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::local::{write_json, InstallInfo};
-use crate::portable::options::Install;
 use crate::portable::platform::optional_docker_check;
+use crate::portable::repository::Channel;
 use crate::portable::repository::QueryOptions;
 use crate::portable::repository::{download, PackageHash, PackageInfo, Query};
 use crate::portable::repository::{get_server_package, get_specific_package};
@@ -24,6 +25,93 @@ use crate::portable::ver::{self, Build};
 use crate::print::{self, msg, Highlight};
 
 static INSTALLED_VERSIONS: Lazy<Mutex<BTreeSet<Build>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
+
+pub fn run(options: &Command) -> anyhow::Result<()> {
+    if optional_docker_check()? {
+        print::error!("`{BRANDING_CLI_CMD} server install` not supported in Docker containers.");
+        Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
+    }
+    let (query, _) = Query::from_options(
+        QueryOptions {
+            nightly: options.nightly,
+            stable: false,
+            testing: false,
+            channel: options.channel,
+            version: options.version.as_ref(),
+        },
+        || Ok(Query::stable()),
+    )?;
+    version(&query)?;
+    Ok(())
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    #[arg(short = 'i', long)]
+    pub interactive: bool,
+    #[arg(long, conflicts_with_all=&["channel", "version"])]
+    pub nightly: bool,
+    #[arg(long, conflicts_with_all=&["nightly", "channel"])]
+    pub version: Option<ver::Filter>,
+    #[arg(long, conflicts_with_all=&["nightly", "version"])]
+    #[arg(value_enum)]
+    pub channel: Option<Channel>,
+}
+
+pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
+    let pkg_info = get_server_package(query)?.context("no package matching your criteria found")?;
+    ver::print_version_hint(&pkg_info.version.specific(), query);
+    package(&pkg_info)
+}
+
+pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
+    let target_dir = platform::portable_dir()?.join(version.to_string());
+    if target_dir.exists() {
+        return InstallInfo::read(&target_dir);
+    }
+    let pkg =
+        get_specific_package(version)?.with_context(|| format!("cannot find package {version}"))?;
+    package(&pkg)
+}
+
+pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
+    let ver_name = pkg_info.version.specific().to_string();
+    let target_dir = platform::portable_dir()?.join(ver_name);
+    if target_dir.exists() {
+        let meta = check_metadata(&target_dir, pkg_info)?;
+        if INSTALLED_VERSIONS
+            .lock()
+            .unwrap()
+            .insert(meta.version.clone())
+        {
+            msg!("Version {} is already downloaded", meta.version.emphasize());
+        }
+        return Ok(meta);
+    }
+
+    msg!("Downloading package...");
+    let cache_path = download_package(pkg_info)?;
+    let tmp_target = platform::tmp_file_path(&target_dir);
+    unpack_package(&cache_path, &tmp_target)?;
+    let info = InstallInfo {
+        version: pkg_info.version.clone(),
+        package_url: pkg_info.url.clone(),
+        package_hash: pkg_info.hash.clone(),
+        installed_at: SystemTime::now(),
+        slot: pkg_info.slot.clone(),
+    };
+    write_json(&tmp_target.join("install_info.json"), "metadata", &info)?;
+    fs::rename(&tmp_target, &target_dir)
+        .with_context(|| format!("cannot rename {tmp_target:?} -> {target_dir:?}"))?;
+    unlink_cache(&cache_path);
+    msg!("Successfully installed {}", pkg_info.version.emphasize());
+    INSTALLED_VERSIONS
+        .lock()
+        .unwrap()
+        .insert(pkg_info.version.clone());
+
+    Ok(info)
+}
 
 #[context("metadata error for {:?}", dir)]
 fn check_metadata(dir: &Path, pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
@@ -149,78 +237,4 @@ fn unlink_cache(cache_file: &Path) {
             log::warn!("Failed to remove cache {:?}: {}", cache_file, e);
         })
         .ok();
-}
-
-pub fn install(options: &Install) -> anyhow::Result<()> {
-    if optional_docker_check()? {
-        print::error!("`{BRANDING_CLI_CMD} server install` not supported in Docker containers.");
-        Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
-    }
-    let (query, _) = Query::from_options(
-        QueryOptions {
-            nightly: options.nightly,
-            stable: false,
-            testing: false,
-            channel: options.channel,
-            version: options.version.as_ref(),
-        },
-        || Ok(Query::stable()),
-    )?;
-    version(&query)?;
-    Ok(())
-}
-
-pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
-    let pkg_info = get_server_package(query)?.context("no package matching your criteria found")?;
-    ver::print_version_hint(&pkg_info.version.specific(), query);
-    package(&pkg_info)
-}
-
-pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
-    let target_dir = platform::portable_dir()?.join(version.to_string());
-    if target_dir.exists() {
-        return InstallInfo::read(&target_dir);
-    }
-    let pkg =
-        get_specific_package(version)?.with_context(|| format!("cannot find package {version}"))?;
-    package(&pkg)
-}
-
-pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
-    let ver_name = pkg_info.version.specific().to_string();
-    let target_dir = platform::portable_dir()?.join(ver_name);
-    if target_dir.exists() {
-        let meta = check_metadata(&target_dir, pkg_info)?;
-        if INSTALLED_VERSIONS
-            .lock()
-            .unwrap()
-            .insert(meta.version.clone())
-        {
-            msg!("Version {} is already downloaded", meta.version.emphasize());
-        }
-        return Ok(meta);
-    }
-
-    msg!("Downloading package...");
-    let cache_path = download_package(pkg_info)?;
-    let tmp_target = platform::tmp_file_path(&target_dir);
-    unpack_package(&cache_path, &tmp_target)?;
-    let info = InstallInfo {
-        version: pkg_info.version.clone(),
-        package_url: pkg_info.url.clone(),
-        package_hash: pkg_info.hash.clone(),
-        installed_at: SystemTime::now(),
-        slot: pkg_info.slot.clone(),
-    };
-    write_json(&tmp_target.join("install_info.json"), "metadata", &info)?;
-    fs::rename(&tmp_target, &target_dir)
-        .with_context(|| format!("cannot rename {tmp_target:?} -> {target_dir:?}"))?;
-    unlink_cache(&cache_path);
-    msg!("Successfully installed {}", pkg_info.version.emphasize());
-    INSTALLED_VERSIONS
-        .lock()
-        .unwrap()
-        .insert(pkg_info.version.clone());
-
-    Ok(info)
 }

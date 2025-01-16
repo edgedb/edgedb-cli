@@ -49,7 +49,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Server(cmd) => {
             directory_check::check_and_error()?;
-            portable::server_main(cmd)
+            portable::server::run(cmd)
         }
         Command::Extension(cmd) => {
             directory_check::check_and_error()?;
@@ -57,11 +57,11 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;
-            portable::instance_main(cmd, options)
+            portable::instance::run(cmd, options)
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
-            portable::project_main(cmd, options)
+            portable::project::run(cmd, options)
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
@@ -75,8 +75,9 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::Cloud(c) => cloud_main(c, &options.cloud_options),
         Command::Watch(c) => watch::watch(options, c),
         Command::Branch(c) => {
-            let cmdopt = init_command_opts(options)?;
-            branch::branch_main(&cmdopt, c)
+            let opts = init_command_opts(options)?;
+            branch::run(&opts, c)?;
+            Ok(())
         }
         Command::HashPassword(cmd) => {
             println!("{}", portable::password_hash(&cmd.password));

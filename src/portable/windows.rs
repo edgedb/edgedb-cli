@@ -24,14 +24,17 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::{cache_dir, config_dir, tmp_file_path, wsl_dir};
-use crate::portable::control;
-use crate::portable::destroy;
 use crate::portable::exit_codes;
+use crate::portable::instance;
+use crate::portable::instance::control;
+use crate::portable::instance::create;
+use crate::portable::instance::destroy;
+use crate::portable::instance::status;
 use crate::portable::local::{write_json, InstanceInfo, NonLocalInstance, Paths};
-use crate::portable::options::{self, instance_arg, InstanceName, Logs, StartConf};
+use crate::portable::options::{self, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
-use crate::portable::status::{self, Service};
+use crate::portable::server;
 use crate::portable::ver;
 use crate::print::{self, msg, Highlight};
 use crate::process;
@@ -201,14 +204,14 @@ pub fn path_to_windows(path: &Path) -> anyhow::Result<PathBuf> {
 }
 
 pub fn create_instance(
-    options: &options::Create,
+    options: &create::Command,
     name: &str,
     port: u16,
     paths: &Paths,
 ) -> anyhow::Result<()> {
     let wsl = ensure_wsl()?;
 
-    let inner_options = options::Create {
+    let inner_options = create::Command {
         name: Some(InstanceName::Local(name.to_string())),
         port: Some(port),
         ..options.clone()
@@ -227,10 +230,10 @@ pub fn create_instance(
     Ok(())
 }
 
-pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
+pub fn destroy(options: &destroy::Command, name: &str) -> anyhow::Result<()> {
     let mut found = false;
     if let Some(wsl) = get_wsl()? {
-        let options = options::Destroy {
+        let options = destroy::Command {
             non_interactive: true,
             quiet: true,
             ..options.clone()
@@ -697,8 +700,8 @@ pub fn restart_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
-pub fn service_status(_inst: &str) -> Service {
-    Service::Inactive {
+pub fn service_status(_inst: &str) -> status::Service {
+    status::Service::Inactive {
         error: "running as a service is not yet supported on Windows".into(),
     }
 }
@@ -711,7 +714,7 @@ pub fn is_wrapped() -> bool {
     Env::_from_windows().unwrap_or_default().unwrap_or_default()
 }
 
-pub fn install(options: &options::Install) -> anyhow::Result<()> {
+pub fn install(options: &server::install::Command) -> anyhow::Result<()> {
     ensure_wsl()?
         .edgedb()
         .arg("server")
@@ -721,7 +724,7 @@ pub fn install(options: &options::Install) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn uninstall(options: &options::Uninstall) -> anyhow::Result<()> {
+pub fn uninstall(options: &server::uninstall::Command) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("server")
@@ -737,7 +740,7 @@ pub fn uninstall(options: &options::Uninstall) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn list_versions(options: &options::ListVersions) -> anyhow::Result<()> {
+pub fn list_versions(options: &server::list_versions::Command) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("server")
@@ -755,7 +758,7 @@ pub fn list_versions(options: &options::ListVersions) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn info(options: &options::Info) -> anyhow::Result<()> {
+pub fn info(options: &server::info::Command) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb().arg("server").arg("info").args(options).run()?;
     } else {
@@ -767,7 +770,10 @@ pub fn info(options: &options::Info) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn reset_password(options: &options::ResetPassword, name: &str) -> anyhow::Result<()> {
+pub fn reset_password(
+    options: &instance::reset_password::Command,
+    name: &str,
+) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance")
@@ -784,7 +790,7 @@ pub fn reset_password(options: &options::ResetPassword, name: &str) -> anyhow::R
     Ok(())
 }
 
-pub fn start(options: &options::Start, name: &str) -> anyhow::Result<()> {
+pub fn start(options: &control::Start, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         if options.foreground {
             wsl.edgedb()
@@ -804,7 +810,7 @@ pub fn start(options: &options::Start, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
+pub fn stop(options: &control::Stop, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         let service_file = service_file(name)?;
         fs::remove_file(&service_file)
@@ -824,7 +830,7 @@ pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn restart(options: &options::Restart) -> anyhow::Result<()> {
+pub fn restart(options: &control::Restart) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance")
@@ -840,7 +846,7 @@ pub fn restart(options: &options::Restart) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn logs(options: &options::Logs) -> anyhow::Result<()> {
+pub fn logs(options: &control::Logs) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance")
@@ -856,7 +862,7 @@ pub fn logs(options: &options::Logs) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn status(options: &options::Status) -> anyhow::Result<()> {
+pub fn status(options: &status::Status) -> anyhow::Result<()> {
     if options.service {
         if let Some(wsl) = get_wsl()? {
             wsl.edgedb()
@@ -872,7 +878,7 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
             return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
         }
     } else {
-        let inner_opts = options::Status {
+        let inner_opts = status::Status {
             quiet: true,
             ..options.clone()
         };
@@ -895,9 +901,9 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>> {
+fn list_local(options: &status::List) -> anyhow::Result<Vec<status::JsonStatus>> {
     if options.debug || options.extended {
-        let inner_opts = options::List {
+        let inner_opts = status::List {
             quiet: true,
             no_remote: true,
             ..options.clone()
@@ -910,7 +916,7 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
                 .run()?;
         }
     }
-    let inner_opts = options::List {
+    let inner_opts = status::List {
         no_remote: true,
         extended: false,
         debug: false,
@@ -932,7 +938,7 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
     Ok(local)
 }
 
-pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+pub fn list(options: &status::List, opts: &crate::Options) -> anyhow::Result<()> {
     let errors = Collector::new();
     let local = match list_local(options) {
         Ok(local) => local,
@@ -999,7 +1005,7 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     }
 }
 
-pub fn upgrade(options: &options::Upgrade, name: &str) -> anyhow::Result<()> {
+pub fn upgrade(options: &instance::upgrade::Command, name: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")
@@ -1011,7 +1017,7 @@ pub fn upgrade(options: &options::Upgrade, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
+pub fn revert(options: &instance::revert::Command, name: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")

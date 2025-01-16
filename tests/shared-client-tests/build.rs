@@ -115,7 +115,7 @@ static MUTEX: Mutex<()> = Mutex::new(());
 "
     );
 
-    'testcase: for (_, case) in connection_testcases.as_array().unwrap().iter().enumerate() {
+    'testcase: for case in connection_testcases.as_array().unwrap() {
         let mut testcase = Vec::new();
         let case = case.as_object().unwrap();
         let name = case.get("name").unwrap().as_str().unwrap();

@@ -1,9 +1,6 @@
 use std::fmt;
-use std::fs;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use anyhow::Context;
 use colorful::Colorful;
 use ring::digest;
 
@@ -23,15 +20,181 @@ use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::options;
+use crate::options::CloudOptions;
 use crate::options::{ConnectionOptions, Options};
-use crate::portable::destroy::with_projects;
-use crate::portable::local::{is_valid_local_instance_name, InstanceInfo};
-use crate::portable::options::{instance_arg, InstanceName, Link, Unlink};
-use crate::portable::project;
+use crate::portable::local::is_valid_local_instance_name;
+use crate::portable::options::InstanceName;
 use crate::portable::ver::Build;
 use crate::print;
 use crate::question;
 use crate::tty_password;
+
+pub fn run(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+    if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
+        anyhow::bail!(
+            "{BRANDING_CLOUD} instances cannot be linked\
+            \nTo connect run:\
+            \n  {BRANDING_CLI_CMD} -I {}",
+            cmd.name.as_ref().unwrap()
+        );
+    }
+
+    let mut has_branch: bool = false;
+    let config: Config = conn_params(cmd, opts, &mut has_branch)?;
+    let mut creds = config.as_credentials()?;
+    let root_cert_store = config.root_cert_store()?;
+    let inner = WebPkiServerVerifier::builder(Arc::new(root_cert_store)).build()?;
+    let verifier = Arc::new(InteractiveCertVerifier {
+        inner,
+        cert_out: Mutex::new(None),
+        tls_security: creds.tls_security,
+        system_ca_only: creds.tls_ca.is_none(),
+        non_interactive: cmd.non_interactive,
+        quiet: cmd.quiet,
+        trust_tls_cert: cmd.trust_tls_cert,
+    });
+    let mut config = config.with_cert_verifier(verifier.clone());
+    let mut connect_result = connect(&config);
+    if let Err(e) = connect_result {
+        if e.is::<PasswordRequired>() {
+            let password;
+
+            if opts.conn_options.password_from_stdin {
+                password = tty_password::read_stdin()?
+            } else if !cmd.non_interactive {
+                password = tty_password::read(format!(
+                    "Password for '{}': ",
+                    config.user().escape_default()
+                ))?;
+            } else {
+                return Err(e.into());
+            }
+
+            config = config.with_password(&password);
+            creds.password = Some(password);
+            if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
+                let pem = pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec()));
+                config = config.with_pem_certificates(&pem)?;
+            }
+            connect_result = Ok(connect(&config)?);
+        } else {
+            return Err(e.into());
+        }
+    }
+
+    let mut connection: Client = connect_result.unwrap();
+    let ver = get_server_version(&mut connection)?;
+
+    if !has_branch && opts.conn_options.branch.is_none() && opts.conn_options.database.is_none() {
+        config = config.with_database(&get_default_branch(&mut connection)?)?;
+
+        eprintln!(
+            "using the default {} '{}'",
+            if ver.specific().major >= 5 {
+                "branch"
+            } else {
+                "database"
+            },
+            config.database()
+        )
+    }
+
+    if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
+        creds.tls_ca = Some(pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec())));
+    }
+
+    let (cred_path, instance_name) = match &cmd.name {
+        Some(InstanceName::Local(name)) => (credentials::path(name)?, name.clone()),
+        Some(InstanceName::Cloud { .. }) => unreachable!(),
+        None => {
+            let default = gen_default_instance_name(config.display_addr());
+            if cmd.non_interactive {
+                if !cmd.quiet {
+                    eprintln!("Using generated instance name: {}", &default);
+                }
+                (credentials::path(&default)?, default)
+            } else {
+                loop {
+                    let name =
+                        question::String::new("Specify a new instance name for the remote server")
+                            .default(&default)
+                            .ask()?;
+                    if !is_valid_local_instance_name(&name) {
+                        print::error!(
+                            "Instance name must be a valid identifier, \
+                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)"
+                        );
+                        continue;
+                    }
+                    break (credentials::path(&name)?, name);
+                }
+            }
+        }
+    };
+    if cred_path.exists() {
+        if cmd.overwrite {
+            if !cmd.quiet {
+                print::warn!("Overwriting {}", cred_path.display());
+            }
+        } else if cmd.non_interactive {
+            anyhow::bail!("File {} exists; aborting.", cred_path.display());
+        } else {
+            let mut q = question::Confirm::new_dangerous(format!(
+                "{} already exists! Overwrite?",
+                cred_path.display()
+            ));
+            q.default(false);
+            if !q.ask()? {
+                anyhow::bail!("Canceled.")
+            }
+        }
+    }
+
+    credentials::write(&cred_path, &creds)?;
+    if !cmd.quiet {
+        let mut msg = "Successfully linked to remote instance.".to_string();
+        if print::use_color() {
+            msg = format!("{}", msg.bold().light_green());
+        }
+        eprintln!(
+            "{} To connect run:\
+            \n  {BRANDING_CLI_CMD} -I {}",
+            msg,
+            instance_name.escape_default(),
+        );
+    }
+    Ok(())
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct Link {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Specify a new instance name for the remote server. User will
+    /// be prompted to provide a name if not specified.
+    #[arg(value_hint=clap::ValueHint::Other)]
+    pub name: Option<InstanceName>,
+
+    /// Run in non-interactive mode (accepting all defaults).
+    #[arg(long)]
+    pub non_interactive: bool,
+
+    /// Reduce command verbosity.
+    #[arg(long)]
+    pub quiet: bool,
+
+    /// Trust peer certificate.
+    #[arg(long)]
+    pub trust_tls_cert: bool,
+
+    /// Overwrite existing credential file if any.
+    #[arg(long)]
+    pub overwrite: bool,
+}
 
 #[derive(Debug)]
 struct InteractiveCertVerifier {
@@ -204,143 +367,6 @@ async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
     anyhow::bail!(default_branch.unwrap_err());
 }
 
-pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
-    if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
-        anyhow::bail!(
-            "{BRANDING_CLOUD} instances cannot be linked\
-            \nTo connect run:\
-            \n  {BRANDING_CLI_CMD} -I {}",
-            cmd.name.as_ref().unwrap()
-        );
-    }
-
-    let mut has_branch: bool = false;
-    let config: Config = conn_params(cmd, opts, &mut has_branch)?;
-    let mut creds = config.as_credentials()?;
-    let root_cert_store = config.root_cert_store()?;
-    let inner = WebPkiServerVerifier::builder(Arc::new(root_cert_store)).build()?;
-    let verifier = Arc::new(InteractiveCertVerifier {
-        inner,
-        cert_out: Mutex::new(None),
-        tls_security: creds.tls_security,
-        system_ca_only: creds.tls_ca.is_none(),
-        non_interactive: cmd.non_interactive,
-        quiet: cmd.quiet,
-        trust_tls_cert: cmd.trust_tls_cert,
-    });
-    let mut config = config.with_cert_verifier(verifier.clone());
-    let mut connect_result = connect(&config);
-    if let Err(e) = connect_result {
-        if e.is::<PasswordRequired>() {
-            let password;
-
-            if opts.conn_options.password_from_stdin {
-                password = tty_password::read_stdin()?
-            } else if !cmd.non_interactive {
-                password = tty_password::read(format!(
-                    "Password for '{}': ",
-                    config.user().escape_default()
-                ))?;
-            } else {
-                return Err(e.into());
-            }
-
-            config = config.with_password(&password);
-            creds.password = Some(password);
-            if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-                let pem = pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec()));
-                config = config.with_pem_certificates(&pem)?;
-            }
-            connect_result = Ok(connect(&config)?);
-        } else {
-            return Err(e.into());
-        }
-    }
-
-    let mut connection: Client = connect_result.unwrap();
-    let ver = get_server_version(&mut connection)?;
-
-    if !has_branch && opts.conn_options.branch.is_none() && opts.conn_options.database.is_none() {
-        config = config.with_database(&get_default_branch(&mut connection)?)?;
-
-        eprintln!(
-            "using the default {} '{}'",
-            if ver.specific().major >= 5 {
-                "branch"
-            } else {
-                "database"
-            },
-            config.database()
-        )
-    }
-
-    if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-        creds.tls_ca = Some(pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec())));
-    }
-
-    let (cred_path, instance_name) = match &cmd.name {
-        Some(InstanceName::Local(name)) => (credentials::path(name)?, name.clone()),
-        Some(InstanceName::Cloud { .. }) => unreachable!(),
-        None => {
-            let default = gen_default_instance_name(config.display_addr());
-            if cmd.non_interactive {
-                if !cmd.quiet {
-                    eprintln!("Using generated instance name: {}", &default);
-                }
-                (credentials::path(&default)?, default)
-            } else {
-                loop {
-                    let name =
-                        question::String::new("Specify a new instance name for the remote server")
-                            .default(&default)
-                            .ask()?;
-                    if !is_valid_local_instance_name(&name) {
-                        print::error!(
-                            "Instance name must be a valid identifier, \
-                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)"
-                        );
-                        continue;
-                    }
-                    break (credentials::path(&name)?, name);
-                }
-            }
-        }
-    };
-    if cred_path.exists() {
-        if cmd.overwrite {
-            if !cmd.quiet {
-                print::warn!("Overwriting {}", cred_path.display());
-            }
-        } else if cmd.non_interactive {
-            anyhow::bail!("File {} exists; aborting.", cred_path.display());
-        } else {
-            let mut q = question::Confirm::new_dangerous(format!(
-                "{} already exists! Overwrite?",
-                cred_path.display()
-            ));
-            q.default(false);
-            if !q.ask()? {
-                anyhow::bail!("Canceled.")
-            }
-        }
-    }
-
-    credentials::write(&cred_path, &creds)?;
-    if !cmd.quiet {
-        let mut msg = "Successfully linked to remote instance.".to_string();
-        if print::use_color() {
-            msg = format!("{}", msg.bold().light_green());
-        }
-        eprintln!(
-            "{} To connect run:\
-            \n  {BRANDING_CLI_CMD} -I {}",
-            msg,
-            instance_name.escape_default(),
-        );
-    }
-    Ok(())
-}
-
 async fn prompt_conn_params(
     options: &ConnectionOptions,
     builder: &mut Builder,
@@ -418,41 +444,4 @@ async fn prompt_conn_params(
     } else {
         Ok(builder.build_env().await?)
     }
-}
-
-pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
-    project::print_instance_in_use_warning(name, project_dirs);
-    eprintln!("If you really want to unlink the instance, run:");
-    eprintln!("  {BRANDING_CLI_CMD} instance unlink -I {name:?} --force");
-}
-
-pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        inst_name => {
-            return Err(anyhow::anyhow!(
-                "cannot unlink {BRANDING_CLOUD} instance {}.",
-                inst_name
-            ))
-            .with_hint(|| {
-                format!("use `{BRANDING_CLI_CMD} instance destroy -I {inst_name}` to remove the instance")
-            })?;
-        }
-    };
-    let inst = InstanceInfo::try_read(&name)?;
-    if inst.is_some() {
-        return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)
-            .with_hint(|| {
-                format!(
-                    "use `{BRANDING_CLI_CMD} instance destroy -I {name}` to remove the instance"
-                )
-            })
-            .into());
-    }
-    with_projects(&name, options.force, print_warning, || {
-        let path = credentials::path(&name)?;
-        fs::remove_file(&path)
-            .with_context(|| format!("Credentials for {name} missing from {path:?}"))
-    })?;
-    Ok(())
 }

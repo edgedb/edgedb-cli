@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use clap::ValueHint;
-
 use crate::branding::BRANDING_CLI_CMD;
 use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
@@ -138,18 +136,18 @@ pub struct Branching {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum BranchingCmd {
     /// Create a new branch
-    Create(crate::branch::option::Create),
+    Create(crate::branch::create::Command),
     /// Delete a branch along with its data
-    Drop(crate::branch::option::Drop),
+    Drop(crate::branch::drop::Command),
     /// Delete a branch's data and reset its schema while preserving the branch
     /// itself (its `cfg::DatabaseConfig`) and existing migration scripts
-    Wipe(crate::branch::option::Wipe),
+    Wipe(crate::branch::wipe::Command),
     /// List all branches.
-    List(crate::branch::option::List),
+    List(crate::branch::list::Command),
     /// Switches the current branch to a different one.
-    Switch(crate::branch::option::Switch),
+    Switch(crate::branch::switch::Command),
     /// Renames a branch.
-    Rename(crate::branch::option::Rename),
+    Rename(crate::branch::rename::Command),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -403,7 +401,7 @@ pub struct Dump {
 
     /// Path to file write dump to (or directory if `--all` is specified).
     /// Use dash `-` to write to stdout (latter does not work in `--all` mode)
-    #[arg(value_hint=ValueHint::AnyPath)]
+    #[arg(value_hint=clap::ValueHint::AnyPath)]
     pub path: PathBuf,
     /// Dump all databases and server configuration. `path` is a directory
     /// in this case and thus `--format=dir` is also required.  Will
@@ -438,7 +436,7 @@ pub struct Restore {
 
     /// Path to file (or directory in case of `--all`) to read dump from.
     /// Use dash `-` to read from stdin
-    #[arg(value_hint=ValueHint::AnyPath)]
+    #[arg(value_hint=clap::ValueHint::AnyPath)]
     pub path: PathBuf,
 
     /// Restore all databases and server configuration. `path` is a

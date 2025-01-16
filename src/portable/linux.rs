@@ -8,10 +8,11 @@ use fn_error_context::context;
 use crate::branding::BRANDING_CLOUD;
 use crate::commands::ExitCode;
 use crate::platform::{current_exe, detect_ipv6, home_dir};
-use crate::portable::destroy::InstanceNotFound;
+use crate::portable::instance::control;
+use crate::portable::instance::destroy::InstanceNotFound;
+use crate::portable::instance::status;
 use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
-use crate::portable::options::{instance_arg, InstanceName, Logs};
-use crate::portable::status::Service;
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::print;
 use crate::process;
 
@@ -293,12 +294,12 @@ pub fn start_service(instance: &str) -> anyhow::Result<()> {
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("enable")
-        .arg(&unit_name(instance))
+        .arg(unit_name(instance))
         .run()?;
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("start")
-        .arg(&unit_name(instance))
+        .arg(unit_name(instance))
         .run()?;
     Ok(())
 }
@@ -367,8 +368,8 @@ fn is_ready(name: &str) -> bool {
     false
 }
 
-pub fn service_status(name: &str) -> Service {
-    use Service::*;
+pub fn service_status(name: &str) -> status::Service {
+    use status::Service::*;
 
     let mut cmd = process::Native::new("service status", "systemctl", "systemctl");
     cmd.arg("--user");
@@ -377,7 +378,7 @@ pub fn service_status(name: &str) -> Service {
     let txt = match cmd.get_stdout_text() {
         Ok(txt) => txt,
         Err(e) => {
-            return Service::Inactive {
+            return status::Service::Inactive {
                 error: format!("cannot determine service status: {e:#}"),
             }
         }
@@ -420,7 +421,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn logs(options: &Logs) -> anyhow::Result<()> {
+pub fn logs(options: &control::Logs) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => {

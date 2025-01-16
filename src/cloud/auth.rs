@@ -83,7 +83,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
         let link = client.api_endpoint.join(&auth_url)?.to_string();
         let success_prompt = "Complete the authentication process now open in your browser";
         let error_prompt = "Please paste this link into your browser to complete authentication:";
-        open_link(&link, Some(&success_prompt), Some(&error_prompt));
+        open_link(&link, Some(success_prompt), Some(error_prompt));
     }
     let deadline = Instant::now() + AUTHENTICATION_WAIT_TIME;
     while Instant::now() < deadline {
@@ -145,9 +145,8 @@ fn find_project_dirs(f: impl Fn(&str) -> bool) -> anyhow::Result<HashMap<String,
                 .into_iter()
                 .filter_map(|p| {
                     read_project_path(&p)
-                        .map_err(|e| {
+                        .inspect_err(|_| {
                             log::warn!("Broken project stash dir: {:?}", p);
-                            e
                         })
                         .ok()
                 })

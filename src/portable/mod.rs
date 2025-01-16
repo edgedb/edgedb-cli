@@ -1,7 +1,6 @@
 pub mod config;
-pub(crate) mod exit_codes;
+pub mod exit_codes;
 pub mod local;
-mod main;
 pub mod options;
 pub mod platform;
 pub mod repository;
@@ -11,23 +10,9 @@ pub mod linux;
 pub mod macos;
 pub mod windows;
 
-mod backup;
-mod control;
-mod create;
-mod credentials;
-mod destroy;
 pub mod extension;
-mod info;
-pub mod install;
-mod link;
-mod list_versions;
+pub mod instance;
 pub mod project;
-mod reset_password;
-mod resize;
-mod revert;
-pub mod status;
-mod uninstall;
-mod upgrade;
+pub mod server;
 
-pub use main::{instance_main, project_main, server_main};
-pub use reset_password::password_hash;
+pub use instance::reset_password::password_hash;

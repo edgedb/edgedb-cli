@@ -1,16 +1,14 @@
+use crate::branch;
 use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
 use crate::branch::create::create_branch;
-use crate::branch::main::verify_server_can_use_branches;
-use crate::branch::option::Switch;
-use crate::commands::CommandResult;
 use crate::connect::Connector;
 
-pub async fn main(
-    options: &Switch,
+pub async fn run(
+    options: &Command,
     context: &Context,
     connector: &mut Connector,
-) -> anyhow::Result<Option<CommandResult>> {
+) -> anyhow::Result<branch::CommandResult> {
     if !context.can_update_current_branch() {
         eprintln!("Cannot switch branches without specifying the instance");
         eprintln!("Either change directory to a project with a linked instance or use --instance argument.");
@@ -23,7 +21,7 @@ pub async fn main(
             anyhow::bail!("Already on '{}'", options.target_branch);
         }
 
-        verify_server_can_use_branches(&mut connection).await?;
+        branch::verify_server_can_use_branches(&mut connection).await?;
 
         // verify the branch exists
         let branches: Vec<String> = connection
@@ -54,7 +52,7 @@ pub async fn main(
         let target_branch_connector = connector.branch(&options.target_branch)?;
         match connect_if_branch_exists(target_branch_connector).await? {
             Some(mut connection) => {
-                verify_server_can_use_branches(&mut connection).await?;
+                branch::verify_server_can_use_branches(&mut connection).await?;
 
                 context.get_current_branch(&mut connection).await?
             }
@@ -71,7 +69,30 @@ pub async fn main(
         .update_current_branch(&options.target_branch)
         .await?;
 
-    Ok(Some(CommandResult {
+    Ok(branch::CommandResult {
         new_branch: Some(options.target_branch.clone()),
-    }))
+    })
+}
+
+/// Switch the current branch.
+#[derive(clap::Args, Debug, Clone)]
+pub struct Command {
+    /// The branch to switch to.
+    pub target_branch: String,
+
+    /// Create the branch if it doesn't exist.
+    #[arg(short = 'c', long)]
+    pub create: bool,
+
+    /// If creating a new branch: whether the new branch should be empty.
+    #[arg(short = 'e', long, conflicts_with = "copy_data")]
+    pub empty: bool,
+
+    /// If creating a new branch: the optional 'base' of the branch to create.
+    #[arg(long)]
+    pub from: Option<String>,
+
+    /// If creating a new branch: whether to copy data from the 'base' branch.
+    #[arg(alias = "cp", long)]
+    pub copy_data: bool,
 }

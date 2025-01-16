@@ -1,10 +1,9 @@
 use crate::branch::context::Context;
-use crate::branch::option::List;
 use crate::connect::Connection;
 use termimad::crossterm::style::Stylize;
 
 pub async fn main(
-    _options: &List,
+    _options: &Command,
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
@@ -27,3 +26,7 @@ pub async fn main(
 
     Ok(())
 }
+
+/// List all branches.
+#[derive(clap::Args, Debug, Clone)]
+pub struct Command {}

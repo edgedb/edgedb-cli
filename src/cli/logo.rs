@@ -97,26 +97,24 @@ pub fn print_logo(allow_animation: bool, small: bool) {
                     normal(' ');
                     write_ansi!(' ');
                 }
-                write_ansi!(MoveCursorLeft(1 as u16));
-                write_ansi!(MoveCursorDown(1 as u16));
+                write_ansi!(MoveCursorLeft(1_u16));
+                write_ansi!(MoveCursorDown(1_u16));
             }
-            write_ansi!(MoveCursorDown(1 as u16));
-            write_ansi!(MoveCursorRight(1 as u16));
+            write_ansi!(MoveCursorDown(1_u16));
+            write_ansi!(MoveCursorRight(1_u16));
         }
         write_ansi!(ShowCursor);
         write_ansi!(RestoreCursorPosition);
         write_ansi!(ResetAttributes);
-    } else {
-        if print::use_color() {
-            for line in &lines {
-                for char in line.chars() {
-                    normal(char);
-                    write_ansi!(char);
-                }
-                write_ansi!("\n");
+    } else if print::use_color() {
+        for line in &lines {
+            for char in line.chars() {
+                normal(char);
+                write_ansi!(char);
             }
-        } else {
-            println!("{}", logo);
+            write_ansi!("\n");
         }
+    } else {
+        println!("{}", logo);
     }
 }

@@ -5,24 +5,103 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
 use const_format::concatcp;
+use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, QUERY_TAG};
 use crate::cloud;
 use crate::commands::{self, ExitCode};
 use crate::connect::{Connection, Connector};
-use crate::portable::control;
-use crate::portable::create;
+use crate::options::CloudOptions;
 use crate::portable::exit_codes;
-use crate::portable::install;
+use crate::portable::instance::control;
+use crate::portable::instance::create;
 use crate::portable::local::{write_json, InstallInfo, InstanceInfo, Paths};
-use crate::portable::options::{instance_arg, InstanceName, Upgrade};
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::repository::{self, Channel, PackageInfo, Query, QueryOptions};
+use crate::portable::server::install;
 use crate::portable::ver;
 use crate::portable::windows;
 use crate::print::{self, msg, Highlight};
 use crate::question;
+
+pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
+    match instance_arg(&cmd.name, &cmd.instance)? {
+        InstanceName::Local(name) => upgrade_local_cmd(cmd, &name),
+        InstanceName::Cloud {
+            org_slug: org,
+            name,
+        } => upgrade_cloud_cmd(cmd, &org, &name, opts),
+    }
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Upgrade specified instance to latest /version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
+        "to_version", "to_testing", "to_nightly", "to_channel",
+    ])]
+    pub to_latest: bool,
+
+    /// Upgrade specified instance to a specified version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
+        "to_testing", "to_latest", "to_nightly", "to_channel",
+    ])]
+    pub to_version: Option<ver::Filter>,
+
+    /// Upgrade specified instance to latest nightly version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
+        "to_version", "to_latest", "to_testing", "to_channel",
+    ])]
+    pub to_nightly: bool,
+
+    /// Upgrade specified instance to latest testing version.
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_channel",
+    ])]
+    pub to_testing: bool,
+
+    /// Upgrade specified instance to latest version in the channel.
+    #[arg(long, value_enum)]
+    #[arg(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_testing",
+    ])]
+    pub to_channel: Option<Channel>,
+
+    /// Instance to upgrade.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Verbose output.
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
+
+    /// Force upgrade even if there is no new version.
+    #[arg(long)]
+    pub force: bool,
+
+    /// Force dump-restore during upgrade even if version is compatible.
+    ///
+    /// Used by `project upgrade --force`.
+    #[arg(long, hide = true)]
+    pub force_dump_restore: bool,
+
+    /// Do not ask questions. Assume user wants to upgrade instance.
+    #[arg(long)]
+    pub non_interactive: bool,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct UpgradeMeta {
@@ -105,17 +184,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<(
     Ok(())
 }
 
-pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
-    match instance_arg(&cmd.name, &cmd.instance)? {
-        InstanceName::Local(name) => upgrade_local_cmd(cmd, &name),
-        InstanceName::Cloud {
-            org_slug: org,
-            name,
-        } => upgrade_cloud_cmd(cmd, &org, &name, opts),
-    }
-}
-
-fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
+fn upgrade_local_cmd(cmd: &Command, name: &str) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let (ver_query, ver_option) = Query::from_options(
@@ -161,7 +230,7 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
 }
 
 fn upgrade_cloud_cmd(
-    cmd: &Upgrade,
+    cmd: &Command,
     org: &str,
     name: &str,
     opts: &crate::options::Options,

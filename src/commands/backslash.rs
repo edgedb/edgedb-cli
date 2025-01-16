@@ -591,10 +591,8 @@ pub async fn execute(
             let cli = prompt.connection.as_mut().expect("connection established");
             let result = execute::common(cli, cmd, &options).await?;
 
-            if let Some(result) = result {
-                if let Some(branch) = result.new_branch {
-                    prompt.try_connect(&branch).await?;
-                }
+            if let Some(branch) = result.new_branch {
+                prompt.try_connect(&branch).await?;
             }
 
             Ok(Skip)

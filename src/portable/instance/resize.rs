@@ -1,14 +1,15 @@
-use color_print::cformat;
-
 use anyhow::Context;
+use color_print::cformat;
+use edgedb_cli_derive::IntoArgs;
 
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
-use crate::portable::options::{InstanceName, Resize};
+use crate::options::CloudOptions;
+use crate::portable::options::{CloudInstanceBillables, InstanceName};
 use crate::print::msg;
 use crate::question;
 
-pub fn resize(cmd: &Resize, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
@@ -21,8 +22,26 @@ pub fn resize(cmd: &Resize, opts: &crate::options::Options) -> anyhow::Result<()
     }
 }
 
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to resize.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    #[command(flatten)]
+    pub billables: CloudInstanceBillables,
+
+    /// Do not ask questions.
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
 fn resize_cloud_cmd(
-    cmd: &Resize,
+    cmd: &Command,
     org_slug: &str,
     name: &str,
     opts: &crate::options::Options,

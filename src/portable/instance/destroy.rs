@@ -1,18 +1,77 @@
 use std::path::PathBuf;
 
+use edgedb_cli_derive::IntoArgs;
 use fs_err as fs;
 
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::commands::ExitCode;
-use crate::options::Options;
-use crate::portable::control;
+use crate::options::{CloudOptions, Options};
 use crate::portable::exit_codes;
+use crate::portable::instance::control;
 use crate::portable::local;
-use crate::portable::options::{instance_arg, Destroy, InstanceName};
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::windows;
 use crate::print::{self, msg, Highlight};
 use crate::question;
+
+pub fn run(options: &Command, opts: &Options) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
+    let name_str = name.to_string();
+    with_projects(&name_str, options.force, print_warning, || {
+        if !options.force && !options.non_interactive {
+            let q = question::Confirm::new_dangerous(format!(
+                "Do you really want to delete instance {name_str:?}?"
+            ));
+            if !q.ask()? {
+                print::error!("Canceled.");
+                return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
+            }
+        }
+        match do_destroy(options, opts, &name) {
+            Ok(()) => Ok(()),
+            Err(e) if e.is::<InstanceNotFound>() => {
+                print::error!("{e}");
+                Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into())
+            }
+            Err(e) => Err(e),
+        }
+    })?;
+    if !options.quiet {
+        msg!("Instance {} is successfully deleted.", name_str.emphasize());
+    }
+    Ok(())
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Command {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Name of instance to destroy.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Verbose output.
+    #[arg(short = 'v', long, overrides_with = "quiet")]
+    pub verbose: bool,
+
+    /// Quiet output.
+    #[arg(short = 'q', long, overrides_with = "verbose")]
+    pub quiet: bool,
+
+    /// Force destroy even if instance is referred to by a project.
+    #[arg(long)]
+    pub force: bool,
+
+    /// Do not ask questions. Assume user wants to delete instance.
+    #[arg(long)]
+    pub non_interactive: bool,
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("instance not found")]
@@ -42,34 +101,6 @@ pub fn with_projects(
             Err(_) => eprintln!("Cleaning {}", dir.display()),
         };
         fs::remove_dir_all(&dir)?;
-    }
-    Ok(())
-}
-
-pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
-    let name_str = name.to_string();
-    with_projects(&name_str, options.force, print_warning, || {
-        if !options.force && !options.non_interactive {
-            let q = question::Confirm::new_dangerous(format!(
-                "Do you really want to delete instance {name_str:?}?"
-            ));
-            if !q.ask()? {
-                print::error!("Canceled.");
-                return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
-            }
-        }
-        match do_destroy(options, opts, &name) {
-            Ok(()) => Ok(()),
-            Err(e) if e.is::<InstanceNotFound>() => {
-                print::error!("{e}");
-                Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into())
-            }
-            Err(e) => Err(e),
-        }
-    })?;
-    if !options.quiet {
-        msg!("Instance {} is successfully deleted.", name_str.emphasize());
     }
     Ok(())
 }
@@ -134,7 +165,7 @@ fn destroy_local(name: &str) -> anyhow::Result<()> {
     }
 }
 
-fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow::Result<()> {
+fn do_destroy(options: &Command, opts: &Options, name: &InstanceName) -> anyhow::Result<()> {
     match name {
         InstanceName::Local(name) => {
             if cfg!(windows) {
@@ -165,7 +196,7 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow:
 
 pub fn force_by_name(name: &InstanceName, options: &Options) -> anyhow::Result<()> {
     do_destroy(
-        &Destroy {
+        &Command {
             name: None,
             instance: Some(name.clone()),
             verbose: false,

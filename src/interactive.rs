@@ -126,7 +126,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         input_language: options
             .input_language
             .or(cfg.shell.input_language)
-            .unwrap_or(repl::InputLanguage::EdgeQL),
+            .unwrap_or(repl::InputLanguage::EdgeQl),
         output_format: options
             .output_format
             .or(cfg.shell.output_format)

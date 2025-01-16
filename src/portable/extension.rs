@@ -1,32 +1,102 @@
 use std::ffi::OsStr;
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::Context;
+use edgedb_cli_derive::IntoArgs;
 use log::trace;
 use prettytable::{row, Table};
 
 use crate::branding::BRANDING_CLOUD;
 use crate::hint::HintExt;
 use crate::options::Options;
-use crate::portable::install::download_package;
 use crate::portable::local::InstanceInfo;
-use crate::portable::options::{
-    instance_arg, ExtensionCommand, ExtensionInstall, ExtensionList, ExtensionListAvailable,
-    ExtensionUninstall, InstanceExtensionCommand, InstanceName,
-};
+use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::platform::get_server;
 use crate::portable::repository::{get_platform_extension_packages, Channel};
+use crate::portable::server::install::download_package;
 use crate::table;
 
-pub fn run(c: &ExtensionCommand, o: &Options) -> Result<(), anyhow::Error> {
-    use InstanceExtensionCommand::*;
-    match &c.subcommand {
-        Install(c) => install(c, o),
-        List(c) => list(c, o),
-        ListAvailable(c) => list_available(c, o),
-        Uninstall(c) => uninstall(c, o),
+pub fn run(cmd: &Command, options: &Options) -> Result<(), anyhow::Error> {
+    use Subcommands::*;
+    match &cmd.subcommand {
+        Install(c) => install(c, options),
+        List(c) => list(c, options),
+        ListAvailable(c) => list_available(c, options),
+        Uninstall(c) => uninstall(c, options),
     }
+}
+
+#[derive(clap::Args, Debug, Clone)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag = true)]
+pub struct Command {
+    #[command(subcommand)]
+    pub subcommand: Subcommands,
+
+    /// Name of the instance
+    #[arg(short = 'I', long)]
+    #[arg(global = true)]
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum Subcommands {
+    /// List installed extensions for a local instance.
+    List(ExtensionList),
+    /// List available extensions for a local instance.
+    ListAvailable(ExtensionListAvailable),
+    /// Install an extension for a local instance.
+    Install(ExtensionInstall),
+    /// Uninstall an extension from a local instance.
+    Uninstall(ExtensionUninstall),
+}
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct ExtensionList {
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionListAvailable {
+    /// Specify the channel override (stable, testing, or nightly)
+    #[arg(long, hide = true)]
+    pub channel: Option<Channel>,
+    /// Specify the slot override (for development use)
+    #[arg(long, hide = true)]
+    pub slot: Option<String>,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionInstall {
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// Name of the extension to install
+    #[arg(short = 'E', long)]
+    pub extension: String,
+    /// Specify the channel override (stable, testing, or nightly)
+    #[arg(long, hide = true)]
+    pub channel: Option<Channel>,
+    /// Specify the slot override (for development use)
+    #[arg(long, hide = true)]
+    pub slot: Option<String>,
+    /// Reinstall the extension if it's already installed
+    #[arg(long, hide = true)]
+    pub reinstall: bool,
+}
+/// Represents the options for uninstalling an extension from a local EdgeDB instance.
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionUninstall {
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
+
+    /// The name of the extension to uninstall.
+    #[arg(short = 'E', long)]
+    pub extension: String,
 }
 
 fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, anyhow::Error> {
@@ -103,7 +173,7 @@ fn get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error
 }
 
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
-    let extensions = get_extensions(&options)?;
+    let extensions = get_extensions(options)?;
 
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
@@ -172,7 +242,7 @@ fn run_extension_loader(
     command: Option<impl AsRef<OsStr>>,
     file: Option<impl AsRef<OsStr>>,
 ) -> Result<String, anyhow::Error> {
-    let mut cmd = Command::new(extension_installer);
+    let mut cmd = std::process::Command::new(extension_installer);
 
     if let Some(cmd_str) = command {
         cmd.arg(cmd_str);
