@@ -110,7 +110,7 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
         <string>{executable}</string>
         <string>instance</string>
         <string>start</string>
-        <string>{instance_name}</string>
+        <string>--instance={instance_name}</string>
         <string>--managed-by=launchctl</string>
     </array>
 
