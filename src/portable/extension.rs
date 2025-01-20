@@ -100,7 +100,7 @@ pub struct ExtensionUninstall {
 }
 
 fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, anyhow::Error> {
-    let name = match instance_arg(&None, instance)? {
+    let name = match instance_arg(instance)? {
         InstanceName::Local(name) => name,
         inst_name => {
             return Err(anyhow::anyhow!(
@@ -125,7 +125,7 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
 type ExtensionInfo = (String, String);
 
 fn get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
-    if let InstanceName::Local(name) = instance_arg(&None, &options.conn_options.instance)? {
+    if let InstanceName::Local(name) = instance_arg(&options.conn_options.instance)? {
         // if local instance, check instance info
         let instance_info = InstanceInfo::try_read(&name)?;
         if let Some(instance_info) = instance_info {

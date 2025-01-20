@@ -12,7 +12,7 @@ use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::project;
 
 pub fn run(cmd: &Command) -> anyhow::Result<()> {
-    let name = match instance_arg(&cmd.name, &cmd.instance)? {
+    let name = match instance_arg(&cmd.instance)? {
         InstanceName::Local(name) => name,
         inst_name => {
             return Err(anyhow::anyhow!(
@@ -44,11 +44,6 @@ pub fn run(cmd: &Command) -> anyhow::Result<()> {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct Command {
-    /// Remote instance name.
-    #[arg(hide = true)]
-    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
-    pub name: Option<InstanceName>,
-
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 

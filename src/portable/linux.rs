@@ -76,7 +76,7 @@ After=network.target
 Type=notify
 
 RuntimeDirectory=edgedb-{instance_name}
-ExecStart={executable} instance start {instance_name} --managed-by=systemd
+ExecStart={executable} instance start --instance {instance_name} --managed-by=systemd
 ExecReload=/bin/kill -HUP ${{MAINPID}}
 KillMode=mixed
 TimeoutSec=0
@@ -422,7 +422,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &control::Logs) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
+    let name = match instance_arg(&options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => {
             print::error!("This operation is not yet supported on {BRANDING_CLOUD} instances.");
