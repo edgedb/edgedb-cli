@@ -14,6 +14,16 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     let mut args = Vec::new();
     for field in &s.fields {
         let ident = &field.ident;
+
+        let mut long = field.attrs.long.as_ref().map(|long| {
+            long.as_ref()
+                .map(|s| s.value().to_string())
+                .unwrap_or_else(|| s.attrs.rename_all.convert(&field.ident.to_string()))
+        });
+        if field.attrs.from_global {
+            long = Some(s.attrs.rename_all.convert(&field.ident.to_string()));
+        }
+
         if field.attrs.flatten {
             if field.optional {
                 args.push(quote! {
@@ -28,18 +38,14 @@ pub fn structure(s: &types::Struct) -> TokenStream {
             }
         } else if field.attrs.subcommand {
             abort!(field.ident, "subcommand is not implemented");
-        } else if let Some(long) = &field.attrs.long {
-            let long = String::from("--")
-                + &long
-                    .as_ref()
-                    .map(|s| s.value().to_string())
-                    .unwrap_or_else(|| s.attrs.rename_all.convert(&field.ident.to_string()));
+        } else if let Some(long) = long {
+            let long = format!("--{long}");
             if field.multiple {
                 abort!(field.ident, "multiple is not implemented");
             }
             match field.parse.kind {
                 FromOccurrences => {
-                    abort!(field.ident, "occurrendes are not implemented");
+                    abort!(field.ident, "occurrences are not implemented");
                 }
                 FromStr | FromOsStr | TryFromStr | TryFromOsStr => {
                     if field.optional {
@@ -109,7 +115,7 @@ pub fn structure(s: &types::Struct) -> TokenStream {
             }
             match field.parse.kind {
                 FromOccurrences => {
-                    abort!(field.ident, "occurrendes are not implemented");
+                    abort!(field.ident, "occurrences are not implemented");
                 }
                 FromStr | FromOsStr | TryFromStr | TryFromOsStr => {
                     if field.optional {
