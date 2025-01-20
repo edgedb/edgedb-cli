@@ -21,7 +21,7 @@ use crate::question;
 pub fn run(options: &Command) -> anyhow::Result<()> {
     use BackupStatus::*;
 
-    let name = match instance_arg(&options.name, &options.instance)? {
+    let name = match instance_arg(&options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
                 return crate::portable::windows::revert(options, &name);
@@ -127,11 +127,6 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Command {
-    /// Name of instance to revert.
-    #[arg(hide = true)]
-    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
-    pub name: Option<InstanceName>,
-
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 

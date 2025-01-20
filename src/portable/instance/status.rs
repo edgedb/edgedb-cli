@@ -73,11 +73,6 @@ pub struct Status {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
 
-    /// Name of the instance
-    #[arg(hide = true)]
-    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
-    pub name: Option<InstanceName>,
-
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
@@ -193,7 +188,7 @@ pub fn run(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
 }
 
 fn external_status(options: &Status) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
+    let name = match instance_arg(&options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => todo!(),
     };
@@ -292,7 +287,7 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
 }
 
 fn normal_status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let name = match instance_arg(&cmd.name, &cmd.instance)? {
+    let name = match instance_arg(&cmd.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud {
             org_slug: org,
@@ -424,7 +419,7 @@ where
 }
 
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
+    let name = match instance_arg(&options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance"),
     };

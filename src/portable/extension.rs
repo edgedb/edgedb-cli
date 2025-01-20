@@ -101,7 +101,7 @@ pub struct ExtensionUninstall {
 }
 
 fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, anyhow::Error> {
-    let name = match instance_arg(&None, instance)? {
+    let name = match instance_arg(instance)? {
         InstanceName::Local(name) => name,
         inst_name => {
             return Err(anyhow::anyhow!(

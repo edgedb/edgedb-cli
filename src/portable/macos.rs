@@ -110,7 +110,7 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
         <string>{executable}</string>
         <string>instance</string>
         <string>start</string>
-        <string>{instance_name}</string>
+        <string>--instance={instance_name}</string>
         <string>--managed-by=launchctl</string>
     </array>
 
@@ -451,7 +451,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &control::Logs) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
+    let name = match instance_arg(&options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => todo!(),
     };
