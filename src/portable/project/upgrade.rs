@@ -214,7 +214,7 @@ pub fn upgrade_instance(options: &Command, opts: &crate::options::Options) -> an
         anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
     };
     let config = config::read(&config_path)?;
-    let cfg_ver = &config.edgedb.server_version;
+    let cfg_ver = &config.instance.server_version;
     let schema_dir = &config.project.schema_dir;
 
     let stash_dir = get_stash_path(&root)?;

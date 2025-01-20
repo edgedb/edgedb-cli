@@ -16,7 +16,8 @@ use crate::print::{self, msg, Highlight};
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct SrcConfig {
-    pub edgedb: SrcEdgedb,
+    #[serde(alias = "edgedb")]
+    pub instance: SrcInstance,
     pub project: Option<SrcProject>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
@@ -24,7 +25,7 @@ pub struct SrcConfig {
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct SrcEdgedb {
+pub struct SrcInstance {
     #[serde(default)]
     pub server_version: Option<toml::Spanned<Query>>,
     #[serde(flatten)]
@@ -43,12 +44,12 @@ pub struct SrcProject {
 
 #[derive(Debug)]
 pub struct Config {
-    pub edgedb: Edgedb,
+    pub instance: Instance,
     pub project: Project,
 }
 
 #[derive(Debug)]
-pub struct Edgedb {
+pub struct Instance {
     pub server_version: Query,
 }
 
@@ -66,7 +67,7 @@ pub fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
 pub fn format_config(version: &Query) -> String {
     format!(
         "\
-        [edgedb]\n\
+        [instance]\n\
         server-version = {:?}\n\
     ",
         version.as_config_value()
@@ -79,12 +80,12 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     let toml = toml::de::Deserializer::new(&text);
     let val: SrcConfig = serde_path_to_error::deserialize(toml)?;
     warn_extra(&val.extra, "");
-    warn_extra(&val.edgedb.extra, "edgedb.");
+    warn_extra(&val.instance.extra, "instance.");
 
     return Ok(Config {
-        edgedb: Edgedb {
+        instance: Instance {
             server_version: val
-                .edgedb
+                .instance
                 .server_version
                 .map(|x| x.into_inner())
                 .unwrap_or(Query {
@@ -180,7 +181,7 @@ pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
     );
     read_modify_write(
         config,
-        |v: &SrcConfig| &v.edgedb.server_version,
+        |v: &SrcConfig| &v.instance.server_version,
         "server-version",
         ver,
         Query::as_config_value,
@@ -287,7 +288,7 @@ mod test {
         super::modify_config(
             &parsed,
             data,
-            |v: &super::SrcConfig| &v.edgedb.server_version,
+            |v: &super::SrcConfig| &v.instance.server_version,
             "server-version",
             version,
             super::Query::as_config_value,
