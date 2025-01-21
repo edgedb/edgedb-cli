@@ -67,7 +67,6 @@ fn dump_all_without_a_format() {
 
 #[test]
 fn dump_restore_all() {
-    println!("before");
     SERVER
         .admin_cmd()
         .arg("database")
@@ -75,7 +74,6 @@ fn dump_restore_all() {
         .arg("dump_02")
         .assert()
         .success();
-    println!("dbcreated");
     SERVER
         .database_cmd("dump_02")
         .arg("query")
@@ -83,19 +81,28 @@ fn dump_restore_all() {
         .arg("INSERT Hello { name := 'world' }")
         .assert()
         .success();
-    println!("Created");
-    SERVER
-        .admin_cmd()
-        .arg("dump")
-        .arg("--all")
-        .arg("--format=dir")
-        .arg("./tmp/dump_02")
-        .assert()
-        .success();
-    println!("dumped");
+
+    // dump all databases
+    // this might fail if a database gets deleted during the dump
+    // so we retry 5 times
+    let mut retry = 0;
+    let res = loop {
+        let r = SERVER
+            .admin_cmd()
+            .arg("dump")
+            .arg("--all")
+            .arg("--format=dir")
+            .arg("./tmp/dump_02")
+            .ok();
+        if r.is_err() && retry < 5 {
+            retry += 1;
+            continue;
+        }
+        break r;
+    };
+    res.unwrap();
 
     let new_instance = ServerGuard(ServerInstance::start());
-    println!("new instance started");
     new_instance
         .admin_cmd()
         .arg("restore")
@@ -103,7 +110,6 @@ fn dump_restore_all() {
         .arg("./tmp/dump_02")
         .assert()
         .success();
-    println!("restored");
 
     new_instance
         .database_cmd("dump_02")
@@ -113,5 +119,4 @@ fn dump_restore_all() {
         .success()
         .stdout("\"world\"\n");
     new_instance.0.stop();
-    println!("query");
 }
