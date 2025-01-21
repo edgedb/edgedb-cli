@@ -95,6 +95,14 @@ impl Wsl {
         pro.no_proxy();
         pro
     }
+    pub fn extension_loader(&self, path: &Path) -> process::Native {
+        let mut pro = process::Native::new("edgedb", "edgedb", "wsl");
+        pro.arg("--user").arg("edgedb");
+        pro.arg("--distribution").arg(&self.distribution);
+        pro.arg(path);
+        pro.no_proxy();
+        pro
+    }
     #[cfg(windows)]
     fn copy_out(&self, src: impl AsRef<str>, destination: impl AsRef<Path>) -> anyhow::Result<()> {
         let dest = path_to_linux(destination.as_ref())?;
@@ -1071,4 +1079,24 @@ pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
 
 pub fn is_in_wsl() -> bool {
     *IS_IN_WSL
+}
+
+pub fn extension_loader(
+    extension_installer: &Path,
+    command: Option<impl AsRef<std::ffi::OsStr>>,
+    file: Option<impl AsRef<std::ffi::OsStr>>,
+) -> anyhow::Result<String> {
+    let wsl = ensure_wsl()?;
+
+    let pro = &mut wsl.extension_loader(extension_installer);
+
+    if let Some(cmd_str) = command {
+        pro.arg(cmd_str);
+    }
+
+    if let Some(file_path) = file {
+        pro.arg(file_path);
+    }
+
+    Ok(pro.get_stdout_text()?)
 }

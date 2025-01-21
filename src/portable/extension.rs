@@ -14,6 +14,7 @@ use crate::portable::options::{instance_arg, InstanceName};
 use crate::portable::platform::get_server;
 use crate::portable::repository::{get_platform_extension_packages, Channel};
 use crate::portable::server::install::download_package;
+use crate::portable::windows;
 use crate::table;
 
 pub fn run(cmd: &Command, options: &Options) -> Result<(), anyhow::Error> {
@@ -242,6 +243,10 @@ fn run_extension_loader(
     command: Option<impl AsRef<OsStr>>,
     file: Option<impl AsRef<OsStr>>,
 ) -> Result<String, anyhow::Error> {
+    if cfg!(windows) {
+        return windows::extension_loader(extension_installer, command, file);
+    }
+
     let mut cmd = std::process::Command::new(extension_installer);
 
     if let Some(cmd_str) = command {
