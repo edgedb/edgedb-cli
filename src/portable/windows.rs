@@ -39,6 +39,8 @@ use crate::portable::ver;
 use crate::print::{self, msg, Highlight};
 use crate::process;
 
+use super::extension;
+
 const CURRENT_DISTRO: &str = BRANDING_WSL;
 static DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux"
@@ -1081,22 +1083,40 @@ pub fn is_in_wsl() -> bool {
     *IS_IN_WSL
 }
 
-pub fn extension_loader(
-    extension_installer: &Path,
-    command: Option<impl AsRef<std::ffi::OsStr>>,
-    file: Option<impl AsRef<std::ffi::OsStr>>,
-) -> anyhow::Result<String> {
-    let wsl = ensure_wsl()?;
+pub fn extension_install(
+    cmd: &extension::ExtensionInstall,
+    instance: String,
+) -> anyhow::Result<()> {
+    let wsl = try_get_wsl()?;
 
-    let pro = &mut wsl.extension_loader(extension_installer);
+    let options = extension::ExtensionInstall {
+        instance: Some(InstanceName::Local(instance)),
+        ..cmd.clone()
+    };
 
-    if let Some(cmd_str) = command {
-        pro.arg(cmd_str);
-    }
+    wsl.edgedb()
+        .arg("instance")
+        .arg("install")
+        .args(&options)
+        .run()?;
+    Ok(())
+}
 
-    if let Some(file_path) = file {
-        pro.arg(file_path);
-    }
+pub fn extension_uninstall(
+    cmd: &extension::ExtensionUninstall,
+    instance: String,
+) -> anyhow::Result<()> {
+    let wsl = try_get_wsl()?;
 
-    Ok(pro.get_stdout_text()?)
+    let options = extension::ExtensionUninstall {
+        instance: Some(InstanceName::Local(instance)),
+        ..cmd.clone()
+    };
+
+    wsl.edgedb()
+        .arg("instance")
+        .arg("uninstall")
+        .args(&options)
+        .run()?;
+    Ok(())
 }

@@ -126,51 +126,23 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
 type ExtensionInfo = (String, String);
 
 fn get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error> {
-    if let InstanceName::Local(name) = instance_arg(&None, &options.conn_options.instance)? {
-        // if local instance, check instance info
-        let instance_info = InstanceInfo::try_read(&name)?;
-        if let Some(instance_info) = instance_info {
-            let extension_loader = instance_info.extension_loader_path()?;
-            let output =
-                run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
-            let value: serde_json::Value = serde_json::from_str(&output)?;
-
-            let mut extensions: Vec<ExtensionInfo> = vec![];
-            if let Some(array) = value.as_array() {
-                for pkg in array {
-                    let name = pkg
-                        .get("extension_name")
-                        .map(|s| s.as_str().unwrap_or_default().to_owned())
-                        .unwrap_or_default();
-                    let version = pkg
-                        .get("extension_version")
-                        .map(|s| s.as_str().unwrap_or_default().to_owned())
-                        .unwrap_or_default();
-                    extensions.push((name, version));
-                }
-            }
-
-            return Ok(extensions);
-        }
-    }
-
     // if remote or cloud instance, connect and query extension packages
-    let query = "for ext in sys::ExtensionPackage union (
-        with
-            ver := ext.version,
-            ver_str := <str>ver.major++'.'++<str>ver.minor,
-        select (ext.name, ver_str)
-    );";
-
     let connector = options.block_on_create_connector()?;
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let extension_query = runtime.spawn(connector.run_single_query::<ExtensionInfo>(query));
 
-    let extensions = runtime.block_on(extension_query)??;
-    Ok(extensions)
+    let extensions = connector.run_single_query::<ExtensionInfo>(
+        "for ext in sys::ExtensionPackage union (
+            with
+                ver := ext.version,
+                ver_str := <str>ver.major++'.'++<str>ver.minor,
+            select (ext.name, ver_str)
+        );",
+    );
+
+    Ok(rt.block_on(extensions)?)
 }
 
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
@@ -187,50 +159,57 @@ fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn uninstall(uninstall: &ExtensionUninstall, _options: &Options) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(&uninstall.instance)?;
-    let extension_loader = inst.extension_loader_path()?;
+fn uninstall(cmd: &ExtensionUninstall, _options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(&cmd.instance)?;
+
+    if cfg!(windows) {
+        return windows::extension_uninstall(cmd, inst.name);
+    }
+
     run_extension_loader(
-        &extension_loader,
+        &inst,
         Some("--uninstall".to_string()),
-        Some(Path::new(&uninstall.extension)),
+        Some(Path::new(&cmd.extension)),
     )?;
     Ok(())
 }
 
-fn install(install: &ExtensionInstall, _options: &Options) -> Result<(), anyhow::Error> {
-    let inst = get_local_instance(&install.instance)?;
-    let extension_loader = inst.extension_loader_path()?;
+fn install(cmd: &ExtensionInstall, _options: &Options) -> Result<(), anyhow::Error> {
+    let inst = get_local_instance(&cmd.instance)?;
+
+    if cfg!(windows) {
+        return windows::extension_install(cmd, inst.name);
+    }
 
     let version = inst.get_version()?.specific();
-    let channel = install.channel.unwrap_or(Channel::from_version(&version)?);
-    let slot = install.slot.clone().unwrap_or(version.slot());
+    let channel = cmd.channel.unwrap_or(Channel::from_version(&version)?);
+    let slot = cmd.slot.clone().unwrap_or(version.slot());
     trace!("Instance: {version} {channel:?} {slot}");
     let packages = get_platform_extension_packages(channel, &slot, get_server()?)?;
 
     let package = packages
         .iter()
-        .find(|pkg| pkg.tags.get("extension").cloned().unwrap_or_default() == install.extension);
+        .find(|pkg| pkg.tags.get("extension").cloned().unwrap_or_default() == cmd.extension);
 
     match package {
         Some(pkg) => {
             println!(
                 "Found extension package: {} version {}",
-                install.extension, pkg.version
+                cmd.extension, pkg.version
             );
             let zip = download_package(pkg)?;
-            let command = if install.reinstall {
+            let command = if cmd.reinstall {
                 Some("--reinstall")
             } else {
                 None
             };
-            run_extension_loader(&extension_loader, command, Some(&zip))?;
-            println!("Extension '{}' installed successfully.", install.extension);
+            run_extension_loader(&inst, command, Some(&zip))?;
+            println!("Extension '{}' installed successfully.", cmd.extension);
         }
         None => {
             return Err(anyhow::anyhow!(
                 "Extension '{}' not found in available packages.",
-                install.extension
+                cmd.extension
             ));
         }
     }
@@ -239,15 +218,13 @@ fn install(install: &ExtensionInstall, _options: &Options) -> Result<(), anyhow:
 }
 
 fn run_extension_loader(
-    extension_installer: &Path,
+    instance: &InstanceInfo,
     command: Option<impl AsRef<OsStr>>,
     file: Option<impl AsRef<OsStr>>,
 ) -> Result<String, anyhow::Error> {
-    if cfg!(windows) {
-        return windows::extension_loader(extension_installer, command, file);
-    }
+    let ext_path = instance.extension_loader_path()?;
 
-    let mut cmd = std::process::Command::new(extension_installer);
+    let mut cmd = std::process::Command::new(&ext_path);
 
     if let Some(cmd_str) = command {
         cmd.arg(cmd_str);
@@ -259,7 +236,7 @@ fn run_extension_loader(
 
     let output = cmd
         .output()
-        .with_context(|| format!("Failed to execute {}", extension_installer.display()))?;
+        .with_context(|| format!("Failed to execute {}", ext_path.display()))?;
 
     if !output.status.success() {
         eprintln!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
