@@ -34,6 +34,9 @@ jobs:
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
 
+      - name: Remove rust-toolchain.toml
+        run: rm rust-toolchain.toml
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
