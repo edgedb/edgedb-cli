@@ -1,28 +1,30 @@
-use predicates::str::contains;
-use test_case::test_case;
+use test_case::{test_case, test_matrix};
 
-use crate::common::{dock_debian, dock_ubuntu, dock_ubuntu_jspy};
+use crate::common::{dock_ubuntu_jspy, Distro};
 use crate::docker::{build_image, Context};
-use crate::docker::{run, run_docker, run_systemd};
+use crate::docker::{run_docker, run_systemd};
 use crate::measure::Time;
 
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--nightly")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--nightly")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--nightly")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--nightly")]
-fn package(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
+#[test_matrix(
+    [
+        Distro::Ubuntu("focal"),
+        Distro::Ubuntu("bionic"),
+        Distro::Debian("bookworm"),
+        Distro::Debian("bullseye"),
+    ],
+    ["", "--nightly"]
+)]
+fn package(distro: Distro, version: &str) -> anyhow::Result<()> {
+    let tag_name = distro.tag_name();
+
     let _tm = Time::measure();
     let context = Context::new()
-        .add_file("Dockerfile", dockerfile)?
+        .add_file("Dockerfile", distro.dockerfile())?
         .add_sudoers()?
         .add_bin()?;
-    build_image(context, tagname)?;
+    build_image(context, &tag_name)?;
     run_systemd(
-        tagname,
+        &tag_name,
         &format!(
             r###"
             edgedb server install {version}
@@ -73,23 +75,26 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Resul
     Ok(())
 }
 
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--nightly")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--nightly")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--nightly")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--nightly")]
-fn docker(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
+#[test_matrix(
+    [
+        Distro::Ubuntu("focal"),
+        Distro::Ubuntu("bionic"),
+        Distro::Debian("bookworm"),
+        Distro::Debian("bullseye"),
+    ],
+    ["", "--nightly"]
+)]
+fn docker(distro: Distro, version: &str) -> anyhow::Result<()> {
+    let tag_name = distro.tag_name();
+
     let _tm = Time::measure();
     let context = Context::new()
-        .add_file("Dockerfile", dockerfile)?
+        .add_file("Dockerfile", distro.dockerfile())?
         .add_sudoers()?
         .add_bin()?;
-    build_image(context, tagname)?;
+    build_image(context, &tag_name)?;
     run_docker(
-        tagname,
+        &tag_name,
         &format!(
             r###"
             edgedb server install {version}

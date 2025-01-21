@@ -1,3 +1,25 @@
+#[derive(Debug, Clone)]
+pub enum Distro {
+    Ubuntu(&'static str),
+    Debian(&'static str),
+}
+
+impl Distro {
+    pub fn tag_name(&self) -> String {
+        match self {
+            Distro::Ubuntu(cn) => format!("test-ubuntu-{cn}"),
+            Distro::Debian(cn) => format!("test-debian-{cn}"),
+        }
+    }
+
+    pub fn dockerfile(&self) -> String {
+        match self {
+            Distro::Ubuntu(codename) => dock_ubuntu(codename),
+            Distro::Debian(codename) => dock_debian(codename),
+        }
+    }
+}
+
 pub fn dock_ubuntu(codename: &str) -> String {
     format!(
         r###"

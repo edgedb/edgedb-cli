@@ -1,29 +1,30 @@
-use test_case::test_case;
+use test_case::test_matrix;
 
-use crate::common::{dock_debian, dock_ubuntu};
+use crate::common::Distro;
+use crate::docker::run_systemd;
 use crate::docker::{build_image, Context};
-use crate::docker::{run_docker, run_systemd};
 use crate::measure::Time;
 
-const NIGHTLY: &str = "--server-version=nightly";
+#[test_matrix(
+    [
+        Distro::Ubuntu("focal"),
+        Distro::Ubuntu("bionic"),
+        Distro::Debian("bookworm"),
+        Distro::Debian("bullseye"),
+    ],
+    ["", "--server-version=nightly"]
+)]
+fn simple_package(distro: Distro, version: &str) -> anyhow::Result<()> {
+    let tag_name = distro.tag_name();
 
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), NIGHTLY)]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), NIGHTLY)]
-#[test_case("edbtest_buster", &dock_debian("buster"), NIGHTLY)]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), NIGHTLY)]
-fn simple_package(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
-        .add_file("Dockerfile", dockerfile)?
+        .add_file("Dockerfile", distro.dockerfile())?
         .add_sudoers()?
         .add_bin()?;
-    build_image(context, tagname)?;
+    build_image(context, &tag_name)?;
     run_systemd(
-        tagname,
+        &tag_name,
         &format!(
             r###"
             mkdir -p /tmp/test1
