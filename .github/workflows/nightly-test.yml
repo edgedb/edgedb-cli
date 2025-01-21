@@ -15,17 +15,16 @@ env:
 jobs:
 
   nightly-test:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
     strategy:
       max-parallel: 4
       matrix:
-        os: [ubuntu-latest]
         test_suite:
         - compat
         - install
         - upgrade
         - project
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
