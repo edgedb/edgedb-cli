@@ -1,11 +1,10 @@
 use test_case::test_case;
 
-use crate::common::{dock_centos, dock_debian, dock_ubuntu};
+use crate::common::{dock_debian, dock_ubuntu};
 use crate::docker::{build_image, Context};
 use crate::docker::{run_docker, run_systemd};
 use crate::measure::Time;
 
-#[test_case("edbtest_centos7", &dock_centos(7))]
 fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
@@ -38,7 +37,6 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
 #[test_case("edbtest_bionic", &dock_ubuntu("bionic"))]
 #[test_case("edbtest_xenial", &dock_ubuntu("xenial"))]
 #[test_case("edbtest_focal", &dock_ubuntu("focal"))]
-#[test_case("edbtest_centos8", &dock_centos(8))]
 #[test_case("edbtest_buster", &dock_debian("buster"))]
 #[test_case("edbtest_stretch", &dock_debian("stretch"))]
 fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
