@@ -165,35 +165,6 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         .assert()
 }
 
-pub fn run_docker(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
-    let script = format!(
-        r###"
-        export EDGEDB_SKIP_DOCKER_CHECK=yes
-        docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
-        docker system prune --all --force
-        docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
-
-        {script}
-    "###,
-        script = script
-    );
-    let path = if let Ok(path) = env::var("DOCKER_VOLUME_PATH") {
-        path.to_string()
-    } else {
-        "/var/run/docker.sock".to_string()
-    };
-    Command::new("docker")
-        .arg("run")
-        .arg("--rm")
-        .arg("-u")
-        .arg("1000")
-        .arg(format!("--volume={0}:{0}", path))
-        .arg("--net=host")
-        .arg(tagname)
-        .args(["bash", "-exc", &script])
-        .assert()
-}
-
 pub fn run_systemd(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
     let script = format!(
         r###"
@@ -203,8 +174,7 @@ pub fn run_systemd(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         /lib/systemd/systemd --user --log-level=debug &
 
         {script}
-    "###,
-        script = script
+    "###
     );
     let script = format!(
         r###"
