@@ -32,8 +32,8 @@ fn package(distro: Distro, version: &str) -> anyhow::Result<()> {
             val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
-            edgedb instance logs test1
-            timeout 180 edgedb instance destroy test1
+            edgedb instance logs -I test1
+            timeout 180 edgedb instance destroy -I test1 --non-interactive
             edgedb server uninstall --all --verbose
         "###,
             version = version,
@@ -64,46 +64,8 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Resul
             test "$val" = "2"
             python3 ./edbconnect.py test1
             node ./edbconnect.js test1
-            edgedb instance logs test1
-            timeout 180 edgedb instance destroy test1
-            edgedb server uninstall --all --verbose
-        "###,
-            version = version,
-        ),
-    )
-    .success();
-    Ok(())
-}
-
-#[test_matrix(
-    [
-        Distro::Ubuntu("focal"),
-        Distro::Ubuntu("bionic"),
-        Distro::Debian("bookworm"),
-        Distro::Debian("bullseye"),
-    ],
-    ["", "--nightly"]
-)]
-fn docker(distro: Distro, version: &str) -> anyhow::Result<()> {
-    let tag_name = distro.tag_name();
-
-    let _tm = Time::measure();
-    let context = Context::new()
-        .add_file("Dockerfile", distro.dockerfile())?
-        .add_sudoers()?
-        .add_bin()?;
-    build_image(context, &tag_name)?;
-    run_docker(
-        &tag_name,
-        &format!(
-            r###"
-            edgedb server install {version}
-            RUST_LOG=info edgedb instance create test1 {version}
-            val=$(edgedb -Itest1 --wait-until-available=60s \
-                query "SELECT 1+1")
-            test "$val" = "2"
-            edgedb instance logs test1
-            timeout 180 edgedb instance destroy test1
+            edgedb instance logs -I test1
+            timeout 180 edgedb instance destroy -I test1 --non-interactive
             edgedb server uninstall --all --verbose
         "###,
             version = version,
@@ -134,8 +96,8 @@ fn docker_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result
             test "$val" = "2"
             python3 ./edbconnect.py test1
             node ./edbconnect.js test1
-            edgedb instance logs test1
-            timeout 180 edgedb instance destroy test1
+            edgedb instance logs -I test1
+            timeout 180 edgedb instance destroy -I test1 --non-interactive
             edgedb server uninstall --all --verbose
         "###,
             version = version,

@@ -5,10 +5,10 @@ use crate::docker::run_systemd;
 use crate::docker::{build_image, Context};
 use crate::measure::Time;
 
-#[test_case("est_focal", &dock_ubuntu("focal"))]
-#[test_case("est_bionic", &dock_ubuntu("bionic"))]
-#[test_case("est_bookworm", &dock_debian("bookworm"))]
-#[test_case("est_bullseye", &dock_debian("bullseye"))]
+#[test_case("test_focal", &dock_ubuntu("focal"))]
+#[test_case("test_bionic", &dock_ubuntu("bionic"))]
+#[test_case("test_bookworm", &dock_debian("bookworm"))]
+#[test_case("test_bullseye", &dock_debian("bullseye"))]
 fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
@@ -32,7 +32,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        if ! edgedb instance upgrade test1 --to-version=1; then
+        if ! edgedb instance upgrade -I test1 --to-version=1; then
             res=$?
             journalctl -xe
             exit $res
