@@ -167,7 +167,7 @@ pub fn init_existing(
     let ver_query = if let Some(sver) = &options.server_version {
         sver.clone()
     } else {
-        config.edgedb.server_version
+        config.instance.server_version
     };
     let mut client = CloudClient::new(cloud_options)?;
     let (name, exists) = ask_name(project_dir, options, &mut client)?;
@@ -492,7 +492,7 @@ fn link(
     }
 
     let config = config::read(&config_path)?;
-    let ver_query = config.edgedb.server_version;
+    let ver_query = config.instance.server_version;
 
     let mut client = CloudClient::new(cloud_options)?;
     let name = if let Some(name) = &options.server_instance {
