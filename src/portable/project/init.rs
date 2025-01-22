@@ -613,7 +613,8 @@ fn init_new(
             instance: project::manifest::Instance {
                 server_version: version_query,
             },
-            project: Default::default(),
+            project: None,
+            hooks: None,
         };
         project::manifest::write(&config_path, &manifest)?;
         if !schema_files {
@@ -676,6 +677,7 @@ fn init_new(
                     server_version: ver_query,
                 },
                 project: Default::default(),
+                hooks: None,
             };
             project::manifest::write(&config_path, &manifest)?;
             if !schema_files {
@@ -740,6 +742,7 @@ fn init_new(
                     server_version: ver_query,
                 },
                 project: Default::default(),
+                hooks: None,
             };
 
             project::manifest::write(&config_path, &manifest)?;

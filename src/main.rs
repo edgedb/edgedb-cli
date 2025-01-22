@@ -29,6 +29,7 @@ mod credentials;
 mod error_display;
 mod format;
 mod highlight;
+mod hooks;
 mod hint;
 mod interactive;
 mod interrupt;
