@@ -18,7 +18,7 @@ use tokio::time::sleep;
 
 use crate::connect::Connection;
 use crate::options::CloudOptions;
-use edgedb_tokio::{credentials::Credentials, Builder};
+use gel_tokio::{credentials::Credentials, Builder};
 
 use crate::branding::{BRANDING_CLOUD, QUERY_TAG};
 use crate::cloud;

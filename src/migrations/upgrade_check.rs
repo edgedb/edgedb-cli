@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use edgedb_tokio::Builder;
+use gel_tokio::Builder;
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::fs;

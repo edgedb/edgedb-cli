@@ -12,8 +12,8 @@ use std::str::FromStr;
 use anyhow::Context;
 use clap_complete::{generate, shells};
 use const_format::concatcp;
-use edgedb_tokio::get_stash_path;
 use fn_error_context::context;
+use gel_tokio::get_stash_path;
 use prettytable::{Cell, Row, Table};
 
 use crate::branding::BRANDING_CLI_CMD_ALT_FILE;

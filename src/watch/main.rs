@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use const_format::concatcp;
-use edgedb_tokio::{get_project_path, Error};
 use edgeql_parser::helpers::quote_string;
+use gel_tokio::{get_project_path, Error};
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;

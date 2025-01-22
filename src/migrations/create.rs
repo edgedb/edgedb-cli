@@ -5,13 +5,13 @@ use std::slice::Iter;
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use edgedb_derive::Queryable;
-use edgedb_errors::{Error, InvalidSyntaxError, QueryError};
 use edgeql_parser::expr;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::schema_file::validate;
 use edgeql_parser::tokenizer::{Kind as TokenKind, Tokenizer};
 use fn_error_context::context;
+use gel_derive::Queryable;
+use gel_errors::{Error, InvalidSyntaxError, QueryError};
 use immutable_chunkmap::set::SetM as Set;
 use once_cell::sync::OnceCell;
 use rustyline::error::ReadlineError;
@@ -93,7 +93,7 @@ pub struct Proposal {
 }
 
 #[derive(Deserialize, Queryable, Debug)]
-#[edgedb(json)]
+#[gel(json)]
 pub struct CurrentMigration {
     pub complete: bool,
     pub parent: String,

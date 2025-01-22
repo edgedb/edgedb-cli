@@ -8,27 +8,28 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
-use edgedb_protocol::annotations::Warning;
+
 use tokio::time::sleep;
 use tokio_stream::Stream;
 
-use edgedb_errors::{ClientError, NoDataError, ProtocolEncodingError};
-use edgedb_errors::{Error, ErrorKind, ResultExt};
-use edgedb_protocol::client_message::{CompilationOptions, State};
-use edgedb_protocol::common::{Capabilities, Cardinality, IoFormat};
-use edgedb_protocol::descriptors::{RawTypedesc, Typedesc};
-use edgedb_protocol::encoding::Annotations;
-use edgedb_protocol::features::ProtocolVersion;
-use edgedb_protocol::model::Uuid;
-use edgedb_protocol::query_arg::QueryArgs;
-use edgedb_protocol::server_message::CommandDataDescription1;
-use edgedb_protocol::server_message::RawPacket;
-use edgedb_protocol::server_message::TransactionState;
-use edgedb_protocol::value::Value;
-use edgedb_protocol::QueryResult;
-use edgedb_tokio::raw::{self, PoolState, Response};
-use edgedb_tokio::server_params::ServerParam;
-use edgedb_tokio::Config;
+use gel_errors::{ClientError, NoDataError, ProtocolEncodingError};
+use gel_errors::{Error, ErrorKind, ResultExt};
+use gel_protocol::annotations::Warning;
+use gel_protocol::client_message::{CompilationOptions, State};
+use gel_protocol::common::{Capabilities, Cardinality, IoFormat};
+use gel_protocol::descriptors::{RawTypedesc, Typedesc};
+use gel_protocol::encoding::Annotations;
+use gel_protocol::features::ProtocolVersion;
+use gel_protocol::model::Uuid;
+use gel_protocol::query_arg::QueryArgs;
+use gel_protocol::server_message::CommandDataDescription1;
+use gel_protocol::server_message::RawPacket;
+use gel_protocol::server_message::TransactionState;
+use gel_protocol::value::Value;
+use gel_protocol::QueryResult;
+use gel_tokio::raw::{self, PoolState, Response};
+use gel_tokio::server_params::ServerParam;
+use gel_tokio::Config;
 
 use crate::branding::{BRANDING, BRANDING_CLOUD, QUERY_TAG, REPL_QUERY_TAG};
 use crate::hint::ArcError;
@@ -187,11 +188,11 @@ impl Connector {
 
     fn warning_msg(&self, cfg: &Config) -> String {
         let desc = match cfg.instance_name() {
-            Some(edgedb_tokio::InstanceName::Cloud {
+            Some(gel_tokio::InstanceName::Cloud {
                 org_slug: org,
                 name,
             }) => format!("{BRANDING_CLOUD} instance '{org}/{name}'"),
-            Some(edgedb_tokio::InstanceName::Local(name)) => {
+            Some(gel_tokio::InstanceName::Local(name)) => {
                 format!("{BRANDING} instance '{}' at {}", name, cfg.display_addr())
             }
             _ => format!("{BRANDING} instance at {}", cfg.display_addr()),
@@ -533,7 +534,7 @@ fn make_ignore_error_state(desc: &RawTypedesc) -> State {
     _make_ignore_error_state(desc).unwrap_or(State::empty())
 }
 
-#[derive(edgedb_derive::ConfigDelta)]
+#[derive(gel_derive::ConfigDelta)]
 struct ErrorState {
     force_database_error: &'static str,
 }

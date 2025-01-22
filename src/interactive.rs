@@ -9,16 +9,16 @@ use tokio::io::{stdout, AsyncWriteExt};
 use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
 
-use edgedb_errors::{ParameterTypeMismatchError, StateMismatchError};
-use edgedb_protocol::client_message::Cardinality;
-use edgedb_protocol::client_message::CompilationOptions;
-use edgedb_protocol::common::RawTypedesc;
-use edgedb_protocol::common::{Capabilities, State};
-use edgedb_protocol::descriptors::Typedesc;
-use edgedb_protocol::model::Duration;
-use edgedb_protocol::value::Value;
-use edgedb_tokio::raw::Description;
 use edgeql_parser::preparser::{self, full_statement};
+use gel_errors::{ParameterTypeMismatchError, StateMismatchError};
+use gel_protocol::client_message::Cardinality;
+use gel_protocol::client_message::CompilationOptions;
+use gel_protocol::common::RawTypedesc;
+use gel_protocol::common::{Capabilities, State};
+use gel_protocol::descriptors::Typedesc;
+use gel_protocol::model::Duration;
+use gel_protocol::value::Value;
+use gel_tokio::raw::Description;
 
 use crate::analyze;
 use crate::classify;
@@ -604,7 +604,7 @@ async fn _interactive_main(
                                set again in this case)"
                         );
                         return Err(ExitCode::new(10))?;
-                    } else if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
+                    } else if let Some(e) = err.downcast_ref::<gel_errors::Error>() {
                         print::edgedb_error(e, state.verbose_errors);
                     } else if !err.is::<QueryError>() {
                         print::error!("{err}");

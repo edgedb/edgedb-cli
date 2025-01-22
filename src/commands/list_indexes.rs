@@ -1,6 +1,6 @@
 use prettytable::{Cell, Row, Table};
 
-use edgedb_derive::Queryable;
+use gel_derive::Queryable;
 use is_terminal::IsTerminal;
 
 use crate::commands::filter;

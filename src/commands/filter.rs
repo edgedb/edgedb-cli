@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::connect::Connection;
-use edgedb_errors::Error;
-use edgedb_protocol::QueryResult;
+use gel_errors::Error;
+use gel_protocol::QueryResult;
 
 pub async fn query<R>(
     cli: &mut Connection,

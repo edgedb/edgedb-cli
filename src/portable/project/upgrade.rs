@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap::ValueHint;
-use edgedb_tokio::get_stash_path;
+use gel_tokio::get_stash_path;
 
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud;

@@ -6,10 +6,10 @@ use std::time::Duration;
 use color_print::cformat;
 use colorful::Colorful;
 use const_format::concatcp;
-use edgedb_errors::{ClientNoCredentialsError, ResultExt};
-use edgedb_protocol::model;
-use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_tokio::{get_project_path, Builder, Config};
+use gel_errors::{ClientNoCredentialsError, ResultExt};
+use gel_protocol::model;
+use gel_tokio::credentials::TlsSecurity;
+use gel_tokio::{get_project_path, Builder, Config};
 use is_terminal::IsTerminal;
 use tokio::task::spawn_blocking as unblock;
 

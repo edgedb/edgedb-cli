@@ -21,11 +21,11 @@ pub enum InstanceName {
     Cloud { org_slug: String, name: String },
 }
 
-impl From<edgedb_tokio::InstanceName> for InstanceName {
-    fn from(x: edgedb_tokio::InstanceName) -> Self {
+impl From<gel_tokio::InstanceName> for InstanceName {
+    fn from(x: gel_tokio::InstanceName) -> Self {
         match x {
-            edgedb_tokio::InstanceName::Local(s) => InstanceName::Local(s),
-            edgedb_tokio::InstanceName::Cloud { org_slug, name } => {
+            gel_tokio::InstanceName::Local(s) => InstanceName::Local(s),
+            gel_tokio::InstanceName::Cloud { org_slug, name } => {
                 InstanceName::Cloud { org_slug, name }
             }
         }
@@ -116,7 +116,7 @@ pub fn instance_arg(
 
     {
         // infer instance from current project
-        let bld = edgedb_tokio::Builder::new();
+        let bld = gel_tokio::Builder::new();
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()

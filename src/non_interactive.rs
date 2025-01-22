@@ -8,11 +8,11 @@ use terminal_size::{terminal_size, Width};
 use tokio::fs::File as AsyncFile;
 use tokio::io::{stdin, AsyncRead};
 
-use edgedb_protocol::client_message::Cardinality;
-use edgedb_protocol::client_message::CompilationOptions;
-use edgedb_protocol::common::Capabilities;
-use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
+use gel_protocol::client_message::Cardinality;
+use gel_protocol::client_message::CompilationOptions;
+use gel_protocol::common::Capabilities;
+use gel_protocol::value::Value;
 use tokio_stream::StreamExt;
 
 use crate::branding::BRANDING_CLI_CMD;
@@ -132,7 +132,7 @@ async fn run_query(
     _run_query(conn, stmt, options, fmt, lang)
         .await
         .map_err(|err| {
-            if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
+            if let Some(err) = err.downcast_ref::<gel_errors::Error>() {
                 match print_query_error(err, stmt, false, "<query>") {
                     Ok(()) => ExitCode::new(1).into(),
                     Err(e) => e,

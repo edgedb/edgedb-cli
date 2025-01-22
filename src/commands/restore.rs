@@ -15,9 +15,9 @@ use tokio::fs;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_stream::Stream;
 
-use edgedb_errors::{Error, ErrorKind, UserError};
 use edgeql_parser::helpers::quote_name;
 use edgeql_parser::preparser::is_empty;
+use gel_errors::{Error, ErrorKind, UserError};
 
 use crate::branding::BRANDING;
 use crate::commands::list_databases;

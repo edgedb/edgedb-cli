@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 use crate::print::buffer::Result;
 use crate::print::formatter::Formatter;
 use crate::repl::VectorLimit;
-use edgedb_protocol::value::Value;
+use gel_protocol::value::Value;
 use geozero::{wkb::Ewkb, ToWkt};
 
 pub trait FormatExt {

@@ -2,8 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use edgedb_protocol::model::Duration;
 use fn_error_context::context;
+use gel_protocol::model::Duration;
 
 use crate::platform::config_dir;
 use crate::repl;

@@ -10,10 +10,10 @@ use rustls::client::WebPkiServerVerifier;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 
-use edgedb_errors::{ClientNoCredentialsError, Error, PasswordRequired};
-use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_tokio::{tls, Client};
-use edgedb_tokio::{Builder, Config};
+use gel_errors::{ClientNoCredentialsError, Error, PasswordRequired};
+use gel_tokio::credentials::TlsSecurity;
+use gel_tokio::{tls, Client};
+use gel_tokio::{Builder, Config};
 use rustyline::error::ReadlineError;
 
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
@@ -329,9 +329,9 @@ fn gen_default_instance_name(input: impl fmt::Display) -> String {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn connect(cfg: &edgedb_tokio::Config) -> Result<Client, Error> {
+async fn connect(cfg: &gel_tokio::Config) -> Result<Client, Error> {
     //Connection::connect(cfg).await
-    let client = edgedb_tokio::Client::new(cfg);
+    let client = gel_tokio::Client::new(cfg);
     client.ensure_connected().await?;
 
     Ok(client)

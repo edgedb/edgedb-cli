@@ -1,5 +1,5 @@
 use crate::connect::Connection;
-use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
+use gel_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::analyze;
 use crate::branch;

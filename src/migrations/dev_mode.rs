@@ -2,7 +2,7 @@ use crate::connect::Connection;
 use indexmap::IndexMap;
 
 use anyhow::Context as _;
-use edgedb_errors::QueryError;
+use gel_errors::QueryError;
 use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
 
@@ -147,7 +147,7 @@ async fn get_db_migration(cli: &mut Connection) -> anyhow::Result<Option<String>
 }
 
 async fn migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()> {
-    use edgedb_protocol::server_message::TransactionState::NotInTransaction;
+    use gel_protocol::server_message::TransactionState::NotInTransaction;
 
     let transaction = matches!(cli.transaction_state(), NotInTransaction);
     if transaction {

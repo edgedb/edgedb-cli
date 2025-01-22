@@ -1,6 +1,6 @@
 use crate::connect::Connection;
-use edgedb_protocol::model::Duration;
 use edgeql_parser::helpers::quote_string;
+use gel_protocol::model::Duration;
 
 pub async fn inhibit_for_transaction(cli: &mut Connection) -> Result<Duration, anyhow::Error> {
     let old_timeout = cli

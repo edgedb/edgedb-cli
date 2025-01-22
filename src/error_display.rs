@@ -6,10 +6,10 @@ use codespan_reporting::term::emit;
 use colorful::core::color_string::CString;
 use colorful::Colorful;
 use const_format::concatcp;
-use edgedb_protocol::annotations::Warning;
+use gel_protocol::annotations::Warning;
 use termcolor::{ColorChoice, StandardStream};
 
-use edgedb_errors::{Error, InternalServerError};
+use gel_errors::{Error, InternalServerError};
 
 use crate::branding::BRANDING_CLI_CMD;
 use crate::print::{self, msg};

@@ -5,8 +5,8 @@ use anyhow::Context;
 use tokio::fs;
 use tokio::io::{self, AsyncWriteExt};
 
-use edgedb_errors::ParameterTypeMismatchError;
-use edgedb_tokio::raw::Description;
+use gel_errors::ParameterTypeMismatchError;
+use gel_tokio::raw::Description;
 
 use crate::classify;
 use crate::cli::env::Env;

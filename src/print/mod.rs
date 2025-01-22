@@ -11,7 +11,7 @@ use snafu::{AsErrorSource, ResultExt, Snafu};
 use terminal_size::{terminal_size, Width};
 use tokio_stream::{Stream, StreamExt};
 
-use edgedb_errors::display::display_error;
+use gel_errors::display::display_error;
 
 use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
@@ -427,7 +427,7 @@ pub fn write_error(line: impl fmt::Display) {
     }
 }
 
-pub fn edgedb_error(err: &edgedb_errors::Error, verbose: bool) {
+pub fn edgedb_error(err: &gel_errors::Error, verbose: bool) {
     // Note: not using `error()` as display_error has markup inside
     msg!("{} {}", err_marker(), display_error(err, verbose));
 }

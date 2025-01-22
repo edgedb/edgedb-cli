@@ -1,5 +1,5 @@
-use edgedb_errors::{ClientConnectionEosError, Error, ErrorKind, NoDataError};
-use edgedb_protocol::queryable::Queryable;
+use gel_errors::{ClientConnectionEosError, Error, ErrorKind, NoDataError};
+use gel_protocol::queryable::Queryable;
 
 use crate::connect::Connection;
 

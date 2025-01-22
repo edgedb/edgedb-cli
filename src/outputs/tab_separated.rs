@@ -1,4 +1,4 @@
-use edgedb_protocol::value::Value::{self, *};
+use gel_protocol::value::Value::{self, *};
 
 pub fn format_row(v: &Value) -> Result<String, anyhow::Error> {
     match v {
@@ -18,7 +18,7 @@ pub fn format_row(v: &Value) -> Result<String, anyhow::Error> {
 }
 
 fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
-    use edgedb_protocol::value::Value::*;
+    use gel_protocol::value::Value::*;
     match v {
         Nothing => Ok(String::new()),
         Uuid(uuid) => Ok(uuid.to_string()),

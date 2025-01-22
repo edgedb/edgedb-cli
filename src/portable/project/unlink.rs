@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::ValueHint;
-use edgedb_tokio::get_stash_path;
+use gel_tokio::get_stash_path;
 
 use crate::branding::CONFIG_FILE_DISPLAY_NAME;
 use crate::commands::ExitCode;

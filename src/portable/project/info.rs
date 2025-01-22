@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use clap::ValueHint;
 use const_format::concatcp;
-use edgedb_tokio::get_stash_path;
+use gel_tokio::get_stash_path;
 
 use crate::branding::BRANDING_CLOUD;
 use crate::branding::{BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};

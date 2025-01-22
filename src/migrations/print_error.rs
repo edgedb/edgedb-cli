@@ -5,11 +5,11 @@ use std::str;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::emit;
-use edgedb_protocol::annotations::Warning;
+use gel_protocol::annotations::Warning;
 use termcolor::{ColorChoice, StandardStream};
 
-use edgedb_errors::{Error, InternalServerError};
 use edgeql_parser::tokenizer::Tokenizer;
+use gel_errors::{Error, InternalServerError};
 
 use crate::migrations::create::SourceName;
 use crate::migrations::source_map::SourceMap;

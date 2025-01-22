@@ -26,8 +26,8 @@ use crate::print::style::Styler;
 use crate::print::Highlight;
 use crate::prompt::variable::{InputFlags, VariableInput};
 use crate::repl::{FAILURE_MARKER, TX_MARKER};
-use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::full_statement;
+use gel_protocol::value::Value;
 
 use colorful::Colorful;
 

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::connect::Connection;
 
-#[derive(Debug, Clone, edgedb_tokio::Queryable)]
+#[derive(Debug, Clone, gel_tokio::Queryable)]
 // TODO(tailhook) this has to be open-ended enumeration
 pub(crate) enum MigrationGeneratedBy {
     DevMode,
@@ -20,7 +20,7 @@ pub(crate) trait SortableMigration {
 }
 
 // Database migration record
-#[derive(Debug, Clone, edgedb_tokio::Queryable)]
+#[derive(Debug, Clone, gel_tokio::Queryable)]
 pub(crate) struct DBMigration {
     pub(crate) name: String,
     pub(crate) script: String,

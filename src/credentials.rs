@@ -6,8 +6,8 @@ use anyhow::Context;
 use fn_error_context::context;
 use fs_err as fs;
 
-use edgedb_tokio::credentials::Credentials;
-use edgedb_tokio::Config;
+use gel_tokio::credentials::Credentials;
+use gel_tokio::Config;
 
 use crate::platform::{config_dir, tmp_file_name};
 use crate::portable::local::is_valid_local_instance_name;
