@@ -39,6 +39,8 @@ use crate::portable::ver;
 use crate::print::{self, msg, Highlight};
 use crate::process;
 
+use super::extension;
+
 const CURRENT_DISTRO: &str = BRANDING_WSL;
 static DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux"
@@ -92,6 +94,14 @@ impl Wsl {
             pro.arg(pair);
         }
         pro.arg("/usr/bin/edgedb");
+        pro.no_proxy();
+        pro
+    }
+    pub fn extension_loader(&self, path: &Path) -> process::Native {
+        let mut pro = process::Native::new("edgedb", "edgedb", "wsl");
+        pro.arg("--user").arg("edgedb");
+        pro.arg("--distribution").arg(&self.distribution);
+        pro.arg(path);
         pro.no_proxy();
         pro
     }
@@ -1071,4 +1081,42 @@ pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
 
 pub fn is_in_wsl() -> bool {
     *IS_IN_WSL
+}
+
+pub fn extension_install(
+    cmd: &extension::ExtensionInstall,
+    instance: String,
+) -> anyhow::Result<()> {
+    let wsl = try_get_wsl()?;
+
+    let options = extension::ExtensionInstall {
+        instance: Some(InstanceName::Local(instance)),
+        ..cmd.clone()
+    };
+
+    wsl.edgedb()
+        .arg("instance")
+        .arg("install")
+        .args(&options)
+        .run()?;
+    Ok(())
+}
+
+pub fn extension_uninstall(
+    cmd: &extension::ExtensionUninstall,
+    instance: String,
+) -> anyhow::Result<()> {
+    let wsl = try_get_wsl()?;
+
+    let options = extension::ExtensionUninstall {
+        instance: Some(InstanceName::Local(instance)),
+        ..cmd.clone()
+    };
+
+    wsl.edgedb()
+        .arg("instance")
+        .arg("uninstall")
+        .args(&options)
+        .run()?;
+    Ok(())
 }
