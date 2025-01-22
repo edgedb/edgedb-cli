@@ -287,7 +287,7 @@ fn install() {
         .assert()
         .context("destroy-2", "with a positional argument")
         .failure()
-        .stdout(predicates::str::contains(
+        .stderr(predicates::str::contains(
             "positional argument has been removed",
         ));
 
