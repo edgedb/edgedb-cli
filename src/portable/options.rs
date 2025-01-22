@@ -9,7 +9,7 @@ use crate::commands::ExitCode;
 use crate::portable::local::{
     is_valid_cloud_instance_name, is_valid_cloud_org_name, is_valid_local_instance_name,
 };
-use crate::print::{err_marker, msg};
+use crate::print::{self, err_marker, msg};
 use crate::process::{self, IntoArg};
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
@@ -90,7 +90,17 @@ impl IntoArg for &InstanceName {
     }
 }
 
-pub fn instance_arg(named: &Option<InstanceName>) -> anyhow::Result<InstanceName> {
+pub fn instance_arg(
+    positional: &Option<InstanceName>,
+    named: &Option<InstanceName>,
+) -> anyhow::Result<InstanceName> {
+    if let Some(name) = positional {
+        print::error!(
+            "Specifying instance name as positional argument has been removed. \
+            Use `-I {name}` instead."
+        );
+        return Err(ExitCode::new(1).into());
+    }
     if let Some(name) = named {
         return Ok(name.clone());
     }

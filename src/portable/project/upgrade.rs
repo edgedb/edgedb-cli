@@ -301,6 +301,7 @@ fn upgrade_local(
                     to_channel: None,
                     to_nightly: false,
                     to_testing: false,
+                    name: None,
                     instance: Some(instance_name),
                     verbose: false,
                     force: cmd.force,

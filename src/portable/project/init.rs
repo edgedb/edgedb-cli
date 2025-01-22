@@ -386,6 +386,7 @@ fn do_init(
                              Trying to start database in the background..."
                 );
                 control::start(&control::Start {
+                    name: None,
                     instance: Some(inst_name.clone()),
                     foreground: false,
                     auto_restart: false,

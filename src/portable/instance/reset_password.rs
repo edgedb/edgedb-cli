@@ -34,6 +34,11 @@ pub fn generate_password() -> String {
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Command {
+    /// Name of instance to reset.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
@@ -59,7 +64,7 @@ pub struct Command {
 }
 
 pub fn run(options: &Command) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.instance)? {
+    let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
                 return crate::portable::windows::reset_password(options, &name);

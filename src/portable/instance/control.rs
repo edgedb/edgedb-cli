@@ -21,6 +21,11 @@ use crate::process;
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Start {
+    /// Name of instance to start.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
@@ -54,18 +59,33 @@ pub struct Start {
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Stop {
+    /// Name of instance to stop.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Restart {
+    /// Name of instance to restart.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)]
+    pub name: Option<InstanceName>,
+
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Logs {
+    /// Name of the instance
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
+
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
@@ -278,7 +298,7 @@ fn set_inheritable(file: &impl std::os::unix::io::AsRawFd) -> anyhow::Result<()>
 }
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.instance)? {
+    let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
                 return windows::start(options, &name);
@@ -464,7 +484,7 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.instance)? {
+    let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
                 return windows::stop(options, &name);
@@ -574,7 +594,7 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn restart(cmd: &Restart, options: &crate::Options) -> anyhow::Result<()> {
-    match instance_arg(&cmd.instance)? {
+    match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => {
             let meta = InstanceInfo::read(&name)?;
             do_restart(&meta)

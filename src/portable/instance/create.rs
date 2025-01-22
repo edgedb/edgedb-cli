@@ -166,6 +166,7 @@ pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> 
                          Trying to start database in the background..."
             );
             control::start(&Start {
+                name: None,
                 instance: Some(inst_name),
                 foreground: false,
                 auto_restart: false,

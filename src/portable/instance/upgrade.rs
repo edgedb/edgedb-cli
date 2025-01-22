@@ -27,7 +27,7 @@ use crate::print::{self, msg, Highlight};
 use crate::question;
 
 pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
-    match instance_arg(&cmd.instance)? {
+    match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => upgrade_local_cmd(cmd, &name),
         InstanceName::Cloud {
             org_slug: org,
@@ -75,6 +75,11 @@ pub struct Command {
         "to_version", "to_latest", "to_nightly", "to_testing",
     ])]
     pub to_channel: Option<Channel>,
+
+    /// Instance to upgrade.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
 
     #[arg(from_global)]
     pub instance: Option<InstanceName>,

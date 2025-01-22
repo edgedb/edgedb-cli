@@ -451,7 +451,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &control::Logs) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.instance)? {
+    let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => todo!(),
     };

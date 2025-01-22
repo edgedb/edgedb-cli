@@ -16,7 +16,7 @@ use crate::print::{self, msg, Highlight};
 use crate::question;
 
 pub fn run(options: &Command, opts: &Options) -> anyhow::Result<()> {
-    let name = instance_arg(&options.instance)?;
+    let name = instance_arg(&options.name, &options.instance)?;
     let name_str = name.to_string();
     with_projects(&name_str, options.force, print_warning, || {
         if !options.force && !options.non_interactive {
@@ -47,6 +47,11 @@ pub fn run(options: &Command, opts: &Options) -> anyhow::Result<()> {
 pub struct Command {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
+
+    /// Name of instance to destroy.
+    #[arg(hide = true)]
+    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    pub name: Option<InstanceName>,
 
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
@@ -192,6 +197,7 @@ fn do_destroy(options: &Command, opts: &Options, name: &InstanceName) -> anyhow:
 pub fn force_by_name(name: &InstanceName, options: &Options) -> anyhow::Result<()> {
     do_destroy(
         &Command {
+            name: None,
             instance: Some(name.clone()),
             verbose: false,
             force: true,

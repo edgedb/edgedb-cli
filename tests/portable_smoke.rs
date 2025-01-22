@@ -282,6 +282,15 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("destroy")
+        .arg("second")
+        .arg("--non-interactive")
+        .assert()
+        .context("destroy-2", "with a positional argument")
+        .success();
+
+    Command::new("edgedb")
+        .arg("instance")
+        .arg("destroy")
         .arg("--instance=second")
         .arg("--non-interactive")
         .assert()
