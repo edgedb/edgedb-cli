@@ -286,7 +286,10 @@ fn install() {
         .arg("--non-interactive")
         .assert()
         .context("destroy-2", "with a positional argument")
-        .success();
+        .failure()
+        .stdout(predicates::str::contains(
+            "positional argument has been removed",
+        ));
 
     Command::new("edgedb")
         .arg("instance")
