@@ -10,6 +10,7 @@ use crate::commands::ExitCode;
 use crate::platform::{current_exe, detect_ipv6};
 use crate::platform::{data_dir, get_current_uid, home_dir};
 use crate::portable::instance::control;
+use crate::portable::instance::control::ensure_runstate_dir;
 use crate::portable::instance::status::Service;
 use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
 use crate::portable::options::{instance_arg, InstanceName};
@@ -288,6 +289,12 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         log::info!("Removing unit file {}", unit_path.display());
         fs::remove_file(unit_path)?;
     }
+
+    // Clear the runstate dir - macOS wouldn't delete UNIX domain socket
+    // files after server shutdown, which may lead to issues in upgrades
+    fs::remove_dir_all(runstate_dir(name)?).ok();
+    ensure_runstate_dir(name)?;
+
     Ok(found)
 }
 
