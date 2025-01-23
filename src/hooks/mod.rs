@@ -1,5 +1,3 @@
-use shell_words;
-
 use crate::{portable::project::manifest, print};
 
 pub fn on_action(action: &'static str, manifest: &manifest::Manifest) -> anyhow::Result<()> {
