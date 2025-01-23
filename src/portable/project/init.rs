@@ -15,7 +15,6 @@ use gel_errors::DuplicateDatabaseDefinitionError;
 use crate::branding::BRANDING_CLOUD;
 use crate::branding::QUERY_TAG;
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
-use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
 use crate::connect::Connection;
@@ -40,6 +39,7 @@ use crate::portable::windows;
 use crate::print::{self, msg, Highlight};
 use crate::question;
 use crate::table;
+use crate::{cloud, hooks};
 
 #[allow(clippy::collapsible_else_if)]
 pub fn run(options: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -152,14 +152,14 @@ pub fn init_existing(
         anyhow::bail!("Project is already initialized.");
     }
 
-    let config = manifest::read(&project.manifest)?;
-    let schema_dir = config.project().resolve_schema_dir(&project.root)?;
+    let manifest = manifest::read(&project.manifest)?;
+    let schema_dir = manifest.project().resolve_schema_dir(&project.root)?;
     let schema_files = project::find_schema_files(&schema_dir)?;
 
     let ver_query = if let Some(sver) = &options.server_version {
         sver.clone()
     } else {
-        config.instance.server_version
+        manifest.instance.server_version.clone()
     };
     let mut client = CloudClient::new(cloud_options)?;
     let (name, exists) = ask_name(&project.root, options, &mut client)?;
@@ -184,7 +184,7 @@ pub fn init_existing(
         } else {
             inst.database.clone_from(&options.database);
         }
-        return do_link(&inst, options, &stash_dir);
+        return do_link(&inst, &manifest, options, &stash_dir);
     }
 
     match &name {
@@ -231,6 +231,7 @@ pub fn init_existing(
                 &stash_dir,
                 &project.root,
                 &schema_dir,
+                &manifest,
                 &ver,
                 &database,
                 options,
@@ -298,6 +299,7 @@ pub fn init_existing(
                 &stash_dir,
                 &project.root,
                 &schema_dir,
+                &manifest,
                 &branch.unwrap_or(create::get_default_branch_name(specific_version)),
                 options,
             )
@@ -311,6 +313,7 @@ fn do_init(
     stash_dir: &Path,
     project_dir: &Path,
     schema_dir: &Path,
+    manifest: &manifest::Manifest,
     database: &str,
     options: &Command,
 ) -> anyhow::Result<project::ProjectInfo> {
@@ -401,6 +404,8 @@ fn do_init(
     stash.database = handle.database.as_deref();
     stash.write(stash_dir)?;
 
+    hooks::on_action("project.init.after", manifest)?;
+
     if !options.no_migrations {
         migrate(&handle, false)?;
     } else {
@@ -419,6 +424,7 @@ fn do_cloud_init(
     stash_dir: &Path,
     project_dir: &Path,
     schema_dir: &Path,
+    manifest: &manifest::Manifest,
     version: &ver::Specific,
     database: &str,
     options: &Command,
@@ -449,6 +455,8 @@ fn do_cloud_init(
     stash.cloud_profile = client.profile.as_deref().or(Some("default"));
     stash.database = handle.database.as_deref();
     stash.write(stash_dir)?;
+
+    hooks::on_action("project.init.after", manifest)?;
 
     if !options.no_migrations {
         migrate(&handle, false)?;
@@ -515,11 +523,12 @@ fn link(
         inst.database.clone_from(&options.database);
     }
     inst.check_version(ver_query);
-    do_link(&inst, options, &stash_dir)
+    do_link(&inst, &manifest, options, &stash_dir)
 }
 
 fn do_link(
     inst: &project::Handle,
+    manifest: &manifest::Manifest,
     options: &Command,
     stash_dir: &Path,
 ) -> anyhow::Result<project::ProjectInfo> {
@@ -530,6 +539,8 @@ fn do_link(
     };
     stash.database = inst.database.as_deref();
     stash.write(stash_dir)?;
+
+    hooks::on_action("project.init.after", manifest)?;
 
     if !options.no_migrations {
         migrate(inst, !options.non_interactive)?;
@@ -635,7 +646,7 @@ fn init_new(
         } else {
             inst.database.clone_from(&options.database);
         }
-        return do_link(&inst, options, &stash_dir);
+        return do_link(&inst, &manifest, options, &stash_dir);
     };
 
     match &inst_name {
@@ -690,6 +701,7 @@ fn init_new(
                 &stash_dir,
                 project_dir,
                 schema_dir,
+                &manifest,
                 &version,
                 &database,
                 options,
@@ -759,6 +771,7 @@ fn init_new(
                 &stash_dir,
                 project_dir,
                 schema_dir,
+                &manifest,
                 &branch.unwrap_or(create::get_default_branch_name(specific_version)),
                 options,
             )
