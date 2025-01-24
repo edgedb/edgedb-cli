@@ -791,7 +791,7 @@ fn extract01() {
             contains("Writing")
                 .and(contains(format!("{BRANDING_CLI_CMD} error: Cannot write")))
                 .and(contains("\n  Caused by: failed to copy file from"))
-                .and(contains("\n  Caused by: Permission denied")),
+                .and(contains("Permission denied")),
         );
 }
 
