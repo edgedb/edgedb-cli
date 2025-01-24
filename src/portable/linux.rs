@@ -76,7 +76,7 @@ After=network.target
 Type=notify
 
 RuntimeDirectory=edgedb-{instance_name}
-ExecStart={executable} instance start {instance_name} --managed-by=systemd
+ExecStart={executable} instance start --instance {instance_name} --managed-by=systemd
 ExecReload=/bin/kill -HUP ${{MAINPID}}
 KillMode=mixed
 TimeoutSec=0

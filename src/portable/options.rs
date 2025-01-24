@@ -95,20 +95,11 @@ pub fn instance_arg(
     named: &Option<InstanceName>,
 ) -> anyhow::Result<InstanceName> {
     if let Some(name) = positional {
-        if named.is_some() {
-            msg!(
-                "{} Instance name is specified twice \
-                as positional argument and via `-I`. \
-                The latter is preferred.",
-                err_marker()
-            );
-            return Err(ExitCode::new(2).into());
-        }
-        print::warn!(
-            "Specifying instance name as positional argument is \
-            deprecated. Use `-I {name}` instead."
+        print::error!(
+            "Specifying instance name as positional argument has been removed. \
+            Use `-I {name}` instead."
         );
-        return Ok(name.clone());
+        return Err(ExitCode::new(1).into());
     }
     if let Some(name) = named {
         return Ok(name.clone());

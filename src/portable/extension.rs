@@ -142,7 +142,7 @@ fn get_extensions(options: &Options) -> Result<Vec<ExtensionInfo>, anyhow::Error
         );",
     );
 
-    Ok(rt.block_on(extensions)?)
+    rt.block_on(extensions)
 }
 
 fn list(_: &ExtensionList, options: &Options) -> Result<(), anyhow::Error> {

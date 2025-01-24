@@ -31,7 +31,7 @@ use crate::portable::instance::create;
 use crate::portable::instance::destroy;
 use crate::portable::instance::status;
 use crate::portable::local::{write_json, InstanceInfo, NonLocalInstance, Paths};
-use crate::portable::options::{self, instance_arg, InstanceName};
+use crate::portable::options;
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
 use crate::portable::server;
@@ -222,7 +222,7 @@ pub fn create_instance(
     let wsl = ensure_wsl()?;
 
     let inner_options = create::Command {
-        name: Some(InstanceName::Local(name.to_string())),
+        name: Some(options::InstanceName::Local(name.to_string())),
         port: Some(port),
         ..options.clone()
     };
@@ -1090,7 +1090,7 @@ pub fn extension_install(
     let wsl = try_get_wsl()?;
 
     let options = extension::ExtensionInstall {
-        instance: Some(InstanceName::Local(instance)),
+        instance: Some(options::InstanceName::Local(instance)),
         ..cmd.clone()
     };
 
@@ -1109,7 +1109,7 @@ pub fn extension_uninstall(
     let wsl = try_get_wsl()?;
 
     let options = extension::ExtensionUninstall {
-        instance: Some(InstanceName::Local(instance)),
+        instance: Some(options::InstanceName::Local(instance)),
         ..cmd.clone()
     };
 

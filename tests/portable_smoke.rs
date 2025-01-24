@@ -103,7 +103,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("logs")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("log-1-0", "logs of `inst1`")
         .success();
@@ -121,7 +121,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("status")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("status-1", "status `inst1` first time")
         .success();
@@ -129,7 +129,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("restart")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("restart-1", "restart `inst1`")
         .success();
@@ -137,7 +137,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("logs")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("log-1-1", "logs of `inst1`")
         .success();
@@ -145,7 +145,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("status")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("status-1-1", "status `inst1` after restart")
         .success();
@@ -153,7 +153,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("stop")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .env("RUST_LOG", "warn,edgedb::process=debug")
         .assert()
         .context("stop-1", "stop `inst1`")
@@ -162,7 +162,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("status")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("status-1-2", "status `inst1` after stop")
         .code(3);
@@ -187,7 +187,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("start")
-        .arg("second")
+        .arg("--instance=second")
         .assert()
         .context("start-2", "start `second`")
         .success();
@@ -195,7 +195,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("start")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("start-1-3", "start `inst1` again")
         .success();
@@ -203,7 +203,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("status")
-        .arg("second")
+        .arg("--instance=second")
         .assert()
         .context("status-2", "status `second`")
         .success();
@@ -211,7 +211,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("logs")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("log-1-2", "logs of `inst1`")
         .success();
@@ -219,7 +219,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("logs")
-        .arg("second")
+        .arg("--instance=second")
         .assert()
         .context("log-2", "logs of `second`")
         .success();
@@ -227,7 +227,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("status")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .assert()
         .context("status-1-4", "status of `inst1`")
         .success();
@@ -236,7 +236,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("upgrade")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .arg("--force")
         .assert()
         .context("upgrade-1", "force upgrade `inst1` to latest")
@@ -255,7 +255,7 @@ fn install() {
     Command::new("edgedb")
         .arg("instance")
         .arg("upgrade")
-        .arg("inst1")
+        .arg("--instance=inst1")
         .arg("--to-latest")
         .arg("--force")
         .assert()
@@ -283,6 +283,18 @@ fn install() {
         .arg("instance")
         .arg("destroy")
         .arg("second")
+        .arg("--non-interactive")
+        .assert()
+        .context("destroy-2", "with a positional argument")
+        .failure()
+        .stderr(predicates::str::contains(
+            "positional argument has been removed",
+        ));
+
+    Command::new("edgedb")
+        .arg("instance")
+        .arg("destroy")
+        .arg("--instance=second")
         .arg("--non-interactive")
         .assert()
         .context("destroy-2", "destroy `second` instance")
