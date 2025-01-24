@@ -1,35 +1,33 @@
-use crate::{portable::project::manifest, print};
+use crate::{portable::project, print};
 
-pub fn on_action(action: &'static str, manifest: &manifest::Manifest) -> anyhow::Result<()> {
-    let Some(hooks) = get_hook(action, manifest) else {
+pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Result<()> {
+    let Some(hook) = get_hook(action, &project.manifest) else {
         return Ok(());
     };
 
-    // parse
-    let parsed_hooks = hooks
-        .iter()
-        .map(|h| shell_words::split(h))
-        .collect::<Result<Vec<Vec<String>>, _>>()?;
+    print::msg!("hook {action}: {hook}");
 
-    for (hook, args) in std::iter::zip(hooks, parsed_hooks) {
-        print::msg!("hook {action}: {hook}");
+    // run
+    let status = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(hook)
+        .current_dir(&project.location.root)
+        .status()?;
 
-        // run
-        let (program, args) = args.split_first().unwrap();
-        let status = std::process::Command::new(program).args(args).status()?;
-
-        // abort on error
-        if !status.success() {
-            return Err(anyhow::anyhow!(
-                "Hook {action} exited with status {status}."
-            ));
-        }
+    // abort on error
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "Hook {action} exited with status {status}."
+        ));
     }
 
     Ok(())
 }
 
-fn get_hook<'m>(action: &'static str, manifest: &'m manifest::Manifest) -> Option<&'m [String]> {
+fn get_hook<'m>(
+    action: &'static str,
+    manifest: &'m project::manifest::Manifest,
+) -> Option<&'m str> {
     let hooks = manifest.hooks.as_ref()?;
     let hook = match action {
         "project.init.before" => &hooks.project.as_ref()?.init.as_ref()?.before,
@@ -46,5 +44,5 @@ fn get_hook<'m>(action: &'static str, manifest: &'m manifest::Manifest) -> Optio
         "migration.merge.after" => &hooks.migration.as_ref()?.merge.as_ref()?.after,
         _ => panic!("unknown action"),
     };
-    Some(hook.as_ref()?.as_ref())
+    hook.as_deref()
 }

@@ -61,7 +61,7 @@ pub async fn run(
     };
 
     if let Some(project) = &context.get_project().await? {
-        hooks::on_action("branch.switch.before", &project.manifest)?;
+        hooks::on_action("branch.switch.before", project)?;
     }
 
     eprintln!(
@@ -74,7 +74,7 @@ pub async fn run(
         .await?;
 
     if let Some(project) = &context.get_project().await? {
-        hooks::on_action("branch.switch.after", &project.manifest)?;
+        hooks::on_action("branch.switch.after", project)?;
     }
 
     Ok(branch::CommandResult {

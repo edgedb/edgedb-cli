@@ -88,8 +88,8 @@ pub struct MigrationHooks {
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Hook {
-    pub before: Option<Vec<String>>,
-    pub after: Option<Vec<String>>,
+    pub before: Option<String>,
+    pub after: Option<String>,
 }
 
 #[context("error reading project config `{}`", path.display())]

@@ -352,12 +352,26 @@ pub async fn load_ctx(override_dir: Option<&Path>) -> anyhow::Result<Option<Cont
 }
 
 #[tokio::main(flavor = "current_thread")]
+pub async fn load_ctx_at(location: Location) -> anyhow::Result<Context> {
+    let manifest = manifest::read(&location.manifest)?;
+    Ok(Context { location, manifest })
+}
+
+#[tokio::main(flavor = "current_thread")]
 pub async fn ensure_ctx(override_dir: Option<&Path>) -> anyhow::Result<Context> {
     let Some(ctx) = load_ctx(override_dir).await? else {
         return Err(anyhow::anyhow!("`{MANIFEST_FILE_DISPLAY_NAME}` not found, unable to perform this action without an initialized project."));
     };
 
     Ok(ctx)
+}
+
+impl Context {
+    fn resolve_schema_dir(&self) -> anyhow::Result<PathBuf> {
+        self.manifest
+            .project()
+            .resolve_schema_dir(&self.location.root)
+    }
 }
 
 pub fn find_project_dirs_by_instance(name: &str) -> anyhow::Result<Vec<PathBuf>> {

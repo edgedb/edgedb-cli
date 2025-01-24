@@ -39,14 +39,14 @@ pub async fn do_wipe(
     context: &Context,
 ) -> Result<(), anyhow::Error> {
     if let Some(project) = context.get_project().await? {
-        hooks::on_action("branch.wipe.before", &project.manifest)?;
+        hooks::on_action("branch.wipe.before", &project)?;
     }
 
     let (status, _warnings) = connection.execute("RESET SCHEMA TO initial", &()).await?;
     print::completion(status);
 
     if let Some(project) = context.get_project().await? {
-        hooks::on_action("branch.wipe.after", &project.manifest)?;
+        hooks::on_action("branch.wipe.after", &project)?;
     }
     Ok(())
 }
