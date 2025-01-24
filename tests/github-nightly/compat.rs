@@ -1,40 +1,37 @@
-use test_case::test_case;
+use test_case::test_matrix;
 
-use crate::common::{dock_centos, dock_debian, dock_ubuntu};
+use crate::common::Distro;
 use crate::docker::run_systemd;
 use crate::docker::{build_image, Context};
 use crate::measure::Time;
 
-// stable
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "")]
-#[test_case("edbtest_centos8", &dock_centos(8), "")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"), "")]
-// alpha7
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-alpha7")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-alpha7")]
-#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-alpha7")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-alpha7")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-alpha7")]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-alpha7")]
-// nightly
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--nightly")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--nightly")]
-#[test_case("edbtest_centos8", &dock_centos(8), "--nightly")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--nightly")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--nightly")]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--nightly")]
-fn cli(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
+#[test_matrix(
+    [
+        Distro::Ubuntu("focal"),
+        Distro::Ubuntu("bionic"),
+        Distro::Ubuntu("xenial"),
+        Distro::Debian("bookworm"),
+        Distro::Debian("bullseye"),
+        Distro::Debian("buster"),
+    ],
+    [
+        "", // latest
+        "--version=4.8", // previous
+        "--nightly", // nightly
+    ]
+)]
+fn cli(distro: Distro, version: &str) -> anyhow::Result<()> {
+    let dockerfile = distro.dockerfile();
+    let tag_name = distro.tag_name();
+
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
         .add_bin()?;
-    build_image(context, tagname)?;
+    build_image(context, &tag_name)?;
     run_systemd(
-        tagname,
+        &tag_name,
         &format!(
             r###"
             edgedb server install {version}
@@ -43,8 +40,7 @@ fn cli(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
                 query "SELECT 1+1")
             test "$val" = "2"
 
-            # changed in 1-alpha.7 due to dropping implicit __tid__
-            edgedb -Itest1 list-scalar-types --system
+            edgedb -Itest1 list scalars --system
         "###,
             version = version,
         ),

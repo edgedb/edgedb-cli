@@ -25,11 +25,11 @@ import asyncio
 import sys
 import edgedb
 
-assert edgedb.connect(sys.argv[1]).query_one("SELECT 1+1") == 2
+assert edgedb.create_client(sys.argv[1]).query_single("SELECT 1+1") == 2
 
 async def test_async():
-    conn = await edgedb.async_connect(sys.argv[1])
-    return await conn.query_one("SELECT 1+1")
+    conn = edgedb.create_async_client(sys.argv[1])
+    return await conn.query_single("SELECT 1+1")
 assert asyncio.get_event_loop().run_until_complete(test_async()) == 2
     "###
 }
@@ -37,18 +37,16 @@ assert asyncio.get_event_loop().run_until_complete(test_async()) == 2
 pub fn edbconnect_js() -> &'static str {
     r###"
 const edgedb = require('edgedb')
-edgedb.connect(process.argv[2])
-.then(function(conn) {
-    return conn.queryOne('SELECT 1+1')
-})
-.then(function(value) {
-    console.assert(value == 2, value)
-    process.exit(0)
-})
-.catch(e => {
-    console.error("Error", e)
-    process.exit(1)
-})
+let client = edgedb.createClient(process.argv[2])
+client.querySingle('SELECT 1+1')
+    .then(function(value) {
+        console.assert(value == 2, value)
+        process.exit(0)
+    })
+    .catch(e => {
+        console.error("Error", e)
+        process.exit(1)
+    })
     "###
 }
 
@@ -167,35 +165,6 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         .assert()
 }
 
-pub fn run_docker(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
-    let script = format!(
-        r###"
-        export EDGEDB_SKIP_DOCKER_CHECK=yes
-        docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
-        docker system prune --all --force
-        docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
-
-        {script}
-    "###,
-        script = script
-    );
-    let path = if let Ok(path) = env::var("DOCKER_VOLUME_PATH") {
-        path.to_string()
-    } else {
-        "/var/run/docker.sock".to_string()
-    };
-    Command::new("docker")
-        .arg("run")
-        .arg("--rm")
-        .arg("-u")
-        .arg("1000")
-        .arg(format!("--volume={0}:{0}", path))
-        .arg("--net=host")
-        .arg(tagname)
-        .args(["bash", "-exc", &script])
-        .assert()
-}
-
 pub fn run_systemd(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
     let script = format!(
         r###"
@@ -205,8 +174,7 @@ pub fn run_systemd(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         /lib/systemd/systemd --user --log-level=debug &
 
         {script}
-    "###,
-        script = script
+    "###
     );
     let script = format!(
         r###"

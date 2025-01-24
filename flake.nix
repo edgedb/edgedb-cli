@@ -38,10 +38,16 @@
         in {
           devShells.default = pkgs.mkShell {
             buildInputs = common ++ [
-              (fenix_pkgs.fromToolchainFile {
-                file = ./rust-toolchain.toml;
-                sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
-              })
+              (fenix_pkgs.combine [
+                (fenix_pkgs.fromToolchainFile {
+                  file = ./rust-toolchain.toml;
+                  sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
+                })
+                (fenix_pkgs.targets.x86_64-unknown-linux-musl.fromToolchainFile {
+                  file = ./rust-toolchain.toml;
+                  sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
+                })
+              ])
             ];
           };
         };

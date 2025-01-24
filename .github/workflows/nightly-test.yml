@@ -15,17 +15,16 @@ env:
 jobs:
 
   nightly-test:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
     strategy:
       max-parallel: 4
       matrix:
-        os: [ubuntu-latest]
         test_suite:
         - compat
         - install
         - upgrade
         - project
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,8 +33,11 @@ jobs:
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
 
+      - name: Remove rust-toolchain.toml
+        run: rm rust-toolchain.toml
+
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@d0e72ca3bfdc51937a4f81431ccbed269ef9f2a2
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: "cargo,rustc,rust-std"
           toolchain: "stable"

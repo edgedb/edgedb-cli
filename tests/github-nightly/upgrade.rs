@@ -1,49 +1,14 @@
 use test_case::test_case;
 
-use crate::common::{dock_centos, dock_debian, dock_ubuntu};
+use crate::common::{dock_debian, dock_ubuntu};
+use crate::docker::run_systemd;
 use crate::docker::{build_image, Context};
-use crate::docker::{run_docker, run_systemd};
 use crate::measure::Time;
 
-#[test_case("edbtest_centos7", &dock_centos(7))]
-fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
-    let _tm = Time::measure();
-    let context = Context::new()
-        .add_file("Dockerfile", dockerfile)?
-        .add_sudoers()?
-        .add_bin()?;
-    build_image(context, tagname)?;
-    run_systemd(
-        tagname,
-        r###"
-        edgedb server install --version=1-alpha7
-        edgedb instance create test1 --start-conf=manual || test "$?" -eq 2
-        edgedb instance start --foreground test1 &
-        edgedb --wait-until-available=60s -Itest1 query '
-            CREATE TYPE Type1 {
-                CREATE PROPERTY prop1 -> str;
-            }
-        ' 'INSERT Type1 { prop1 := "value1" }'
-        kill %1 && wait
-
-        RUST_LOG=debug edgedb instance upgrade test1 --to-version=1-beta1
-
-        edgedb instance start --foreground test1 &
-        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
-              query 'SELECT Type1 { prop1 }')
-        test "$val" = "value1"
-    "###,
-    )
-    .success();
-    Ok(())
-}
-
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"))]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"))]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"))]
-#[test_case("edbtest_centos8", &dock_centos(8))]
-#[test_case("edbtest_buster", &dock_debian("buster"))]
-#[test_case("edbtest_stretch", &dock_debian("stretch"))]
+#[test_case("test_focal", &dock_ubuntu("focal"))]
+#[test_case("test_bionic", &dock_ubuntu("bionic"))]
+#[test_case("test_bookworm", &dock_debian("bookworm"))]
+#[test_case("test_bullseye", &dock_debian("bullseye"))]
 fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
@@ -54,109 +19,42 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     run_systemd(
         tagname,
         r###"
-        edgedb server install --version=1-alpha7
-        edgedb instance create test1
+        edgedb server install --version=4.8
+        edgedb instance create test1 --version=4.8
 
-        ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
-            SELECT sys::get_version_as_str()
-        ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
-        path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-alpha7"
+        ver1=$(edgedb -Itest1 --wait-until-available=60s query --output-format=tab-separated \
+            'SELECT sys::get_version_as_str()')
+        [[ $ver1 =~ ^4\.8 ]]
 
         edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        if ! edgedb instance upgrade test1 --to-version=1-beta1; then
+        if ! edgedb instance upgrade -I test1 --to-version=5 --non-interactive; then
             res=$?
             journalctl -xe
             exit $res
         fi
-        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
-            SELECT sys::get_version_as_str()
-        ')
-        [[ $ver2 =~ ^1\.0-beta\.1\+ ]]
-        path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-beta1"
+        ver2=$(edgedb -Itest1 --wait-until-available=60s query --output-format=tab-separated \
+            'SELECT sys::get_version_as_str()')
+        [[ $ver2 =~ ^5\.[0-9]+\+ ]]
 
-        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
-              query 'SELECT Type1 { prop1 }')
+        val=$(edgedb -Itest1 --wait-until-available=60s query --output-format=tab-separated \
+            'SELECT Type1 { prop1 }')
         test "$val" = "value1"
 
-        if ! edgedb server revert test1 --no-confirm; then
+        if ! edgedb instance revert -I test1 --no-confirm; then
             res=$?
             journalctl -xe
             exit $res
         fi
-        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
-            SELECT sys::get_version_as_str()
-        ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
+        ver2=$(edgedb -Itest1 --wait-until-available=60s query --output-format=tab-separated \
+            'SELECT sys::get_version_as_str()')
+        [[ $ver1 =~ ^4\.8 ]]
 
-        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
-              query 'SELECT Type1 { prop1 }')
-        test "$val" = "value1"
-    "###,
-    )
-    .success();
-    Ok(())
-}
-
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"))]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"))]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"))]
-#[test_case("edbtest_centos7", &dock_centos(7))]
-#[test_case("edbtest_centos8", &dock_centos(8))]
-#[test_case("edbtest_buster", &dock_debian("buster"))]
-#[test_case("edbtest_stretch", &dock_debian("stretch"))]
-fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
-    let _tm = Time::measure();
-    let context = Context::new()
-        .add_file("Dockerfile", dockerfile)?
-        .add_sudoers()?
-        .add_bin()?;
-    build_image(context, tagname)?;
-    run_docker(
-        tagname,
-        r###"
-        mkdir /tmp/workdir
-        cd /tmp/workdir
-
-        edgedb server install --version=1-alpha7 --method=docker
-        edgedb instance create test1
-
-        ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
-            SELECT sys::get_version_as_str()
-        ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
-
-        edgedb --wait-until-available=60s -Itest1 query '
-            CREATE TYPE Type1 {
-                CREATE PROPERTY prop1 -> str;
-            }
-        ' 'INSERT Type1 { prop1 := "value1" }'
-        edgedb instance upgrade test1
-
-        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
-            SELECT sys::get_version_as_str()
-        ')
-        [[ $ver2 =~ ^1\.0-beta\.1\+ ]]
-
-        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
-              query 'SELECT Type1 { prop1 }')
-        test "$val" = "value1"
-
-        edgedb server revert test1 --no-confirm
-
-        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
-            SELECT sys::get_version_as_str()
-        ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
-
-        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
-              query 'SELECT Type1 { prop1 }')
+        val=$(edgedb -Itest1 --wait-until-available=60s query --output-format=tab-separated \
+            'SELECT Type1 { prop1 }')
         test "$val" = "value1"
     "###,
     )
