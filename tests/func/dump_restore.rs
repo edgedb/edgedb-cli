@@ -83,8 +83,11 @@ fn dump_restore_all() {
         .success();
 
     // dump all databases
-    // this might fail if a database gets deleted during the dump
-    // so we retry 5 times
+    
+    // This might fail if a database gets deleted during the dump
+    // so we retry 5 times.
+    // We could instead spawn a new edgedb server to increase isolation,
+    // but that would slow tests down and they are slow enough already.
     let mut retry = 0;
     let res = loop {
         let r = SERVER
