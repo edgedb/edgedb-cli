@@ -83,7 +83,7 @@ fn dump_restore_all() {
         .success();
 
     // dump all databases
-    
+
     // This might fail if a database gets deleted during the dump
     // so we retry 5 times.
     // We could instead spawn a new edgedb server to increase isolation,
