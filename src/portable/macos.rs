@@ -1,4 +1,5 @@
 use std::fs;
+use std::os::unix::fs::FileTypeExt;
 use std::path::PathBuf;
 use std::thread;
 use std::time;
@@ -10,7 +11,6 @@ use crate::commands::ExitCode;
 use crate::platform::{current_exe, detect_ipv6};
 use crate::platform::{data_dir, get_current_uid, home_dir};
 use crate::portable::instance::control;
-use crate::portable::instance::control::ensure_runstate_dir;
 use crate::portable::instance::status::Service;
 use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
 use crate::portable::options::{instance_arg, InstanceName};
@@ -273,6 +273,7 @@ fn _service_status(name: &str) -> Status {
     }
 }
 
+#[context("cannot stop and disable service")]
 pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     if is_service_loaded(name) {
         // bootout will fail if the service is not loaded (e.g. manually-
@@ -292,8 +293,17 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
 
     // Clear the runstate dir - macOS wouldn't delete UNIX domain socket
     // files after server shutdown, which may lead to issues in upgrades
-    fs::remove_dir_all(runstate_dir(name)?).ok();
-    ensure_runstate_dir(name)?;
+    let dir_path = runstate_dir(name)?;
+    for entry in fs::read_dir(dir_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if let Ok(metadata) = path.metadata() {
+            if metadata.file_type().is_socket() {
+                fs::remove_file(&path)?;
+            }
+        }
+    }
 
     Ok(found)
 }
