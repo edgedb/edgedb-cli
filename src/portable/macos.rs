@@ -291,15 +291,16 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         fs::remove_file(unit_path)?;
     }
 
-    // Clear the runstate dir - macOS wouldn't delete UNIX domain socket
-    // files after server shutdown, which may lead to issues in upgrades
+    // Clear the runstate dir of socket files and symlinks - macOS wouldn't
+    // delete UNIX domain socket files after server shutdown, which may lead to
+    // issues in upgrades
     let dir_path = runstate_dir(name)?;
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
         let path = entry.path();
 
         if let Ok(metadata) = path.metadata() {
-            if metadata.file_type().is_socket() {
+            if metadata.file_type().is_socket() || metadata.file_type().is_symlink() {
                 fs::remove_file(&path)?;
             }
         }
