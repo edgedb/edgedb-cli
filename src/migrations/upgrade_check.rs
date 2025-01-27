@@ -60,7 +60,7 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Resu
                     break;
                 }
             }
-            let ctx = Context::from_project_or_config(&options.cfg, false).await?;
+            let ctx = Context::for_migration_config(&options.cfg, false).await?;
 
             do_check(&ctx, &status_path, options.watch).await
         })
