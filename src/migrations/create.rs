@@ -38,8 +38,8 @@ use crate::migrations::source_map::{Builder, SourceMap};
 use crate::migrations::squash;
 use crate::migrations::timeout;
 use crate::platform::{is_legacy_schema_file, is_schema_file, tmp_file_name};
-use crate::print;
 use crate::print::style::Styler;
+use crate::print::{self, AsRelativeToCurrentDir};
 use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
@@ -791,16 +791,17 @@ where
     file.flush().await?;
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;
+
+    let filepath = filepath.as_relative().display();
     if verbose {
         if print::use_color() {
             eprintln!(
-                "{} {}, id: {}",
+                "{} {}, id: {id}",
                 "Created".bold().light_green(),
-                filepath.display().to_string().bold().white(),
-                id,
+                filepath.to_string().bold().white(),
             );
         } else {
-            eprintln!("Created {}, id: {}", filepath.display(), id);
+            eprintln!("Created {filepath}, id: {id}");
         }
     }
     Ok(())

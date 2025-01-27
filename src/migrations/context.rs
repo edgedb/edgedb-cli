@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::migrations::options::MigrationConfig;
-use crate::portable::config;
+use crate::portable::project;
 
 use gel_tokio::get_project_path;
 
@@ -18,9 +18,11 @@ impl Context {
     ) -> anyhow::Result<Context> {
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()
-        } else if let Some(config_path) = get_project_path(None, true).await? {
-            let config = config::read(&config_path)?;
-            config.project.schema_dir
+        } else if let Some(manifest_path) = get_project_path(None, true).await? {
+            let config = project::manifest::read(&manifest_path)?;
+            config
+                .project()
+                .resolve_schema_dir(manifest_path.parent().unwrap())?
         } else {
             let default_dir: PathBuf = "./dbschema".into();
             if !default_dir.exists() {
@@ -31,13 +33,12 @@ impl Context {
 
         Ok(Context { schema_dir, quiet })
     }
-    pub fn for_watch(config_path: &Path) -> anyhow::Result<Context> {
-        let config = config::read(config_path)?;
-        Context::for_project(&config)
-    }
-    pub fn for_project(config: &config::Config) -> anyhow::Result<Context> {
+    pub fn for_project(project: &project::Context) -> anyhow::Result<Context> {
         Ok(Context {
-            schema_dir: config.project.schema_dir.clone(),
+            schema_dir: project
+                .manifest
+                .project()
+                .resolve_schema_dir(&project.location.root)?,
             quiet: false,
         })
     }

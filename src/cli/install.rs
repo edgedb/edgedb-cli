@@ -433,8 +433,8 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     }
 
     let base_dir = env::current_dir().context("failed to get current directory")?;
-    if let Some((project_dir, config_path)) = project::project_dir(Some(&base_dir))? {
-        if get_stash_path(&project_dir)?.exists() {
+    if let Some(project) = project::find_project(Some(&base_dir))? {
+        if get_stash_path(&project.root)?.exists() {
             log::info!("Project already initialized. Skipping...");
             return Ok(Already);
         }
@@ -450,7 +450,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
         let q = question::Confirm::new(format!(
             "Do you want to initialize a new {BRANDING} server instance for the project \
              defined in `{}`?",
-            config_path.display(),
+            project.manifest.display(),
         ));
         if !q.ask()? {
             return Ok(Refused);
@@ -472,7 +472,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud_opts: options.clone(),
         };
-        project::init::init_existing(&init, &project_dir, config_path, &options)?;
+        project::init::init_existing(&init, &project, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)

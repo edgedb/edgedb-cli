@@ -1,5 +1,4 @@
 use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -15,7 +14,7 @@ use gel_errors::DuplicateDatabaseDefinitionError;
 
 use crate::branding::BRANDING_CLOUD;
 use crate::branding::QUERY_TAG;
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -24,7 +23,6 @@ use crate::connect::Connector;
 use crate::credentials;
 use crate::migrations;
 use crate::options::CloudOptions;
-use crate::portable::config;
 use crate::portable::exit_codes;
 use crate::portable::instance::control;
 use crate::portable::instance::create;
@@ -33,6 +31,7 @@ use crate::portable::options::InstanceName;
 use crate::portable::options::{CloudInstanceBillables, CloudInstanceParams};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::project;
+use crate::portable::project::manifest;
 use crate::portable::repository::{self, Channel, PackageInfo, Query};
 use crate::portable::server::install;
 use crate::portable::ver;
@@ -57,18 +56,18 @@ pub fn run(options: &Command, opts: &crate::options::Options) -> anyhow::Result<
         );
     }
 
-    let project_dir = project::project_dir(options.project_dir.as_deref())?;
+    let project = project::find_project(options.project_dir.as_deref())?;
 
-    if let Some((project_dir, config_path)) = project_dir {
+    if let Some(project) = project {
         if options.link {
-            link(options, &project_dir, config_path, &opts.cloud_options)?;
+            link(options, &project, &opts.cloud_options)?;
         } else {
-            init_existing(options, &project_dir, config_path, &opts.cloud_options)?;
+            init_existing(options, &project, &opts.cloud_options)?;
         }
     } else {
         if options.link {
             anyhow::bail!(
-                "{CONFIG_FILE_DISPLAY_NAME} not found, unable to link an existing {BRANDING} \
+                "{MANIFEST_FILE_DISPLAY_NAME} not found, unable to link an existing {BRANDING} \
                 instance without an initialized project. To initialize \
                 a project, run `{BRANDING_CLI_CMD}` command without `--link` flag"
             )
@@ -133,36 +132,29 @@ pub struct Command {
 
 pub fn init_existing(
     options: &Command,
-    project_dir: &Path,
-    config_path: PathBuf,
+    project: &project::Location,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<project::ProjectInfo> {
     msg!(
         "Found `{}` in {}",
-        config_path
+        project
+            .manifest
             .file_name()
             .unwrap_or_default()
             .to_string_lossy(),
-        project_dir.display()
+        project.root.display()
     );
     msg!("Initializing project...");
 
-    let stash_dir = get_stash_path(project_dir)?;
+    let stash_dir = get_stash_path(&project.root)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
         anyhow::bail!("Project is already initialized.");
     }
 
-    let config = config::read(&config_path)?;
-    let schema_dir = config.project.schema_dir;
-    let schema_dir_path = project_dir.join(&schema_dir);
-    let schema_dir_path = if schema_dir_path.exists() {
-        fs::canonicalize(&schema_dir_path)
-            .with_context(|| format!("failed to canonicalize dir {schema_dir_path:?}"))?
-    } else {
-        schema_dir_path
-    };
-    let schema_files = project::find_schema_files(&schema_dir_path)?;
+    let config = manifest::read(&project.manifest)?;
+    let schema_dir = config.project().resolve_schema_dir(&project.root)?;
+    let schema_files = project::find_schema_files(&schema_dir)?;
 
     let ver_query = if let Some(sver) = &options.server_version {
         sver.clone()
@@ -170,22 +162,22 @@ pub fn init_existing(
         config.instance.server_version
     };
     let mut client = CloudClient::new(cloud_options)?;
-    let (name, exists) = ask_name(project_dir, options, &mut client)?;
+    let (name, exists) = ask_name(&project.root, options, &mut client)?;
 
     if exists {
-        let mut inst = project::Handle::probe(&name, project_dir, &schema_dir, &client)?;
+        let mut inst = project::Handle::probe(&name, &project.root, &schema_dir, &client)?;
         let specific_version: &Specific = &inst.get_version()?.specific();
         inst.check_version(&ver_query);
 
         if matches!(name, InstanceName::Cloud { .. }) {
             if options.non_interactive {
                 inst.database = Some(options.database.clone().unwrap_or(
-                    get_default_branch_or_database(specific_version, project_dir),
+                    get_default_branch_or_database(specific_version, &project.root),
                 ));
             } else {
                 inst.database = Some(ask_database_or_branch(
                     specific_version,
-                    project_dir,
+                    &project.root,
                     options,
                 )?);
             }
@@ -202,11 +194,11 @@ pub fn init_existing(
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
             ver::print_version_hint(&ver, &ver_query);
-            let database = ask_database(project_dir, options)?;
+            let database = ask_database(&project.root, options)?;
 
             table::settings(&[
-                ("Project directory", project_dir.display().to_string()),
-                ("Project config", config_path.display().to_string()),
+                ("Project directory", project.root.display().to_string()),
+                ("Project config", project.manifest.display().to_string()),
                 (
                     &format!(
                         "Schema dir {}",
@@ -216,7 +208,7 @@ pub fn init_existing(
                             "(empty)"
                         }
                     ),
-                    schema_dir_path.display().to_string(),
+                    schema_dir.display().to_string(),
                 ),
                 (
                     if ver.major >= 5 {
@@ -237,7 +229,7 @@ pub fn init_existing(
                 name.to_owned(),
                 org_slug.to_owned(),
                 &stash_dir,
-                project_dir,
+                &project.root,
                 &schema_dir,
                 &ver,
                 &database,
@@ -279,9 +271,9 @@ pub fn init_existing(
             );
 
             let mut rows: Vec<(&str, String)> = vec![
-                ("Project directory", project_dir.display().to_string()),
-                ("Project config", config_path.display().to_string()),
-                (schema_dir_key, schema_dir_path.display().to_string()),
+                ("Project directory", project.root.display().to_string()),
+                ("Project config", project.manifest.display().to_string()),
+                (schema_dir_key, schema_dir.display().to_string()),
                 ("Installation method", meth),
                 ("Version", pkg.version.to_string()),
                 ("Instance name", name.clone()),
@@ -304,7 +296,7 @@ pub fn init_existing(
                 name,
                 &pkg,
                 &stash_dir,
-                project_dir,
+                &project.root,
                 &schema_dir,
                 &branch.unwrap_or(create::get_default_branch_name(specific_version)),
                 options,
@@ -472,27 +464,27 @@ fn do_cloud_init(
 
 fn link(
     options: &Command,
-    project_dir: &Path,
-    config_path: PathBuf,
+    project: &project::Location,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<project::ProjectInfo> {
     msg!(
         "Found `{}` in {}",
-        config_path
+        project
+            .manifest
             .file_name()
             .unwrap_or_default()
             .to_string_lossy(),
-        project_dir.display()
+        project.root.display()
     );
     msg!("Linking project...");
 
-    let stash_dir = get_stash_path(project_dir)?;
+    let stash_dir = get_stash_path(&project.root)?;
     if stash_dir.exists() {
         anyhow::bail!("Project is already linked");
     }
 
-    let config = config::read(&config_path)?;
-    let ver_query = config.instance.server_version;
+    let manifest = manifest::read(&project.manifest)?;
+    let ver_query = &manifest.instance.server_version;
 
     let mut client = CloudClient::new(cloud_options)?;
     let name = if let Some(name) = &options.server_instance {
@@ -506,23 +498,23 @@ fn link(
     } else {
         ask_existing_instance_name(&mut client)?
     };
-    let schema_dir = &config.project.schema_dir;
-    let mut inst = project::Handle::probe(&name, project_dir, schema_dir, &client)?;
+    let schema_dir = manifest.project().resolve_schema_dir(&project.root)?;
+    let mut inst = project::Handle::probe(&name, &project.root, &schema_dir, &client)?;
     if matches!(name, InstanceName::Cloud { .. }) {
         if options.non_interactive {
             inst.database = Some(
                 options
                     .database
                     .clone()
-                    .unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()),
+                    .unwrap_or(directory_to_name(&project.root, "edgedb").to_owned()),
             )
         } else {
-            inst.database = Some(ask_database(project_dir, options)?);
+            inst.database = Some(ask_database(&project.root, options)?);
         }
     } else {
         inst.database.clone_from(&options.database);
     }
-    inst.check_version(&ver_query);
+    inst.check_version(ver_query);
     do_link(&inst, options, &stash_dir)
 }
 
@@ -580,14 +572,14 @@ fn init_new(
     opts: &crate::options::Options,
 ) -> anyhow::Result<project::ProjectInfo> {
     eprintln!(
-        "No {CONFIG_FILE_DISPLAY_NAME} found in `{}` or above",
+        "No {MANIFEST_FILE_DISPLAY_NAME} found in `{}` or above",
         project_dir.display()
     );
 
     let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         anyhow::bail!(
-            "{CONFIG_FILE_DISPLAY_NAME} deleted after \
+            "{MANIFEST_FILE_DISPLAY_NAME} deleted after \
                        project initialization. \
                        Please run `{BRANDING_CLI_CMD} project unlink -D` to \
                        clean up old database instance."
@@ -616,9 +608,16 @@ fn init_new(
         inst = project::Handle::probe(&inst_name, project_dir, schema_dir, &client)?;
         let specific_version: &Specific = &inst.get_version()?.specific();
         let version_query = Query::from_version(specific_version)?;
-        project::write_config(&config_path, &version_query)?;
+
+        let manifest = project::manifest::Manifest {
+            instance: project::manifest::Instance {
+                server_version: version_query,
+            },
+            project: Default::default(),
+        };
+        project::manifest::write(&config_path, &manifest)?;
         if !schema_files {
-            project::write_schema_default(&schema_dir_path, &version_query)?;
+            project::write_schema_default(&schema_dir_path, &manifest.instance.server_version)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
             if options.non_interactive {
@@ -671,7 +670,14 @@ fn init_new(
                 ("Version", version.to_string()),
                 ("Instance name", name.clone()),
             ]);
-            project::write_config(&config_path, &ver_query)?;
+
+            let manifest = project::manifest::Manifest {
+                instance: project::manifest::Instance {
+                    server_version: ver_query,
+                },
+                project: Default::default(),
+            };
+            project::manifest::write(&config_path, &manifest)?;
             if !schema_files {
                 project::write_schema_default(&schema_dir_path, &Query::from_version(&version)?)?;
             }
@@ -729,7 +735,14 @@ fn init_new(
 
             table::settings(rows.as_slice());
 
-            project::write_config(&config_path, &ver_query)?;
+            let manifest = project::manifest::Manifest {
+                instance: project::manifest::Instance {
+                    server_version: ver_query,
+                },
+                project: Default::default(),
+            };
+
+            project::manifest::write(&config_path, &manifest)?;
             if !schema_files {
                 project::write_schema_default(
                     &schema_dir_path,

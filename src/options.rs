@@ -19,7 +19,7 @@ use crate::cli;
 use crate::cli::options::CliCommand;
 
 use crate::branch;
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, MANIFEST_FILE_DISPLAY_NAME};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
@@ -915,7 +915,7 @@ impl Options {
                         )
                     } else {
                         format!(
-                            "no {CONFIG_FILE_DISPLAY_NAME} found and no connection options \
+                            "no {MANIFEST_FILE_DISPLAY_NAME} found and no connection options \
                             are specified"
                         )
                     };

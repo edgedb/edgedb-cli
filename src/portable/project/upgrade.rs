@@ -5,20 +5,20 @@ use anyhow::Context;
 use clap::ValueHint;
 use gel_tokio::get_stash_path;
 
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::migrations;
-use crate::portable::config;
 use crate::portable::instance;
 use crate::portable::instance::upgrade;
 use crate::portable::local::InstanceInfo;
 use crate::portable::options::InstanceName;
 use crate::portable::project;
+use crate::portable::project::manifest;
 use crate::portable::repository::{self, Channel, Query};
 use crate::portable::ver;
 use crate::portable::windows;
-use crate::print::{self, msg, Highlight};
+use crate::print::{self, msg, AsRelativeToCurrentDir, Highlight};
 use crate::question;
 
 pub fn run(options: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -100,11 +100,11 @@ pub fn update_toml(
     opts: &crate::options::Options,
     query: Query,
 ) -> anyhow::Result<()> {
-    let Some((root, config_path)) = project::project_dir(options.project_dir.as_deref())? else {
-        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
-    };
-    let config = config::read(&config_path)?;
-    let schema_dir = &config.project.schema_dir;
+    let project = project::ensure_ctx(options.project_dir.as_deref())?;
+    let schema_dir = project
+        .manifest
+        .project()
+        .resolve_schema_dir(&project.location.root)?;
 
     let pkg = repository::get_server_package(&query)?.with_context(|| {
         format!(
@@ -115,11 +115,11 @@ pub fn update_toml(
     })?;
     let pkg_ver = pkg.version.specific();
 
-    let stash_dir = get_stash_path(&root)?;
+    let stash_dir = get_stash_path(&project.location.root)?;
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
-        if config::modify_server_ver(&config_path, &query)? {
+        if manifest::modify_server_ver(&project.location.manifest, &query)? {
             print::success!("Config updated successfully.");
         } else {
             print::success!("Config is up to date.");
@@ -133,13 +133,13 @@ pub fn update_toml(
         let name = project::instance_name(&stash_dir)?;
         let database = project::database_name(&stash_dir)?;
         let client = CloudClient::new(&opts.cloud_options)?;
-        let mut inst = project::Handle::probe(&name, &root, schema_dir, &client)?;
+        let mut inst = project::Handle::probe(&name, &project.location.root, &schema_dir, &client)?;
         inst.database = database;
 
         let result = match inst.instance {
             project::InstanceKind::Remote => anyhow::bail!("remote instances cannot be upgraded"),
             project::InstanceKind::Portable(inst) => {
-                upgrade_local(options, &config, inst, &query, opts)
+                upgrade_local(options, &project, inst, &query, opts)
             }
             project::InstanceKind::Wsl => todo!(),
             project::InstanceKind::Cloud { org_slug, name, .. } => {
@@ -157,11 +157,11 @@ pub fn update_toml(
                     Query::from_version(&pkg_ver)?
                 };
 
-                if config::modify_server_ver(&config_path, &config_version)? {
+                if manifest::modify_server_ver(&project.location.manifest, &config_version)? {
                     msg!("Remember to commit it to version control.");
                 }
                 let name_str = name.to_string();
-                print_other_project_warning(&name_str, &root, &query)?;
+                print_other_project_warning(&name_str, &project.location.root, &query)?;
             }
             upgrade::UpgradeAction::Cancelled => {
                 msg!("Canceled.");
@@ -199,7 +199,7 @@ fn print_other_project_warning(
             projects:"
         );
         for pd in &project_dirs {
-            eprintln!("  {}", pd.display());
+            eprintln!("  {}", pd.as_relative().display());
         }
         eprintln!("Run the following commands to update them:");
         for pd in &project_dirs {
@@ -209,15 +209,15 @@ fn print_other_project_warning(
     Ok(())
 }
 
-pub fn upgrade_instance(options: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let Some((root, config_path)) = project::project_dir(options.project_dir.as_deref())? else {
-        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
-    };
-    let config = config::read(&config_path)?;
-    let cfg_ver = &config.instance.server_version;
-    let schema_dir = &config.project.schema_dir;
+pub fn upgrade_instance(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let project = project::ensure_ctx(cmd.project_dir.as_deref())?;
+    let cfg_ver = &project.manifest.instance.server_version;
+    let schema_dir = project
+        .manifest
+        .project()
+        .resolve_schema_dir(&project.location.root)?;
 
-    let stash_dir = get_stash_path(&root)?;
+    let stash_dir = get_stash_path(&project.location.root)?;
     if !stash_dir.exists() {
         anyhow::bail!("No instance initialized.");
     }
@@ -225,16 +225,15 @@ pub fn upgrade_instance(options: &Command, opts: &crate::options::Options) -> an
     let instance_name = project::instance_name(&stash_dir)?;
     let database = project::database_name(&stash_dir)?;
     let client = CloudClient::new(&opts.cloud_options)?;
-    let mut inst = project::Handle::probe(&instance_name, &root, schema_dir, &client)?;
+    let mut inst =
+        project::Handle::probe(&instance_name, &project.location.root, &schema_dir, &client)?;
     inst.database = database;
     let result = match inst.instance {
         project::InstanceKind::Remote => anyhow::bail!("remote instances cannot be upgraded"),
-        project::InstanceKind::Portable(inst) => {
-            upgrade_local(options, &config, inst, cfg_ver, opts)
-        }
+        project::InstanceKind::Portable(inst) => upgrade_local(cmd, &project, inst, cfg_ver, opts),
         project::InstanceKind::Wsl => todo!(),
         project::InstanceKind::Cloud { org_slug, name, .. } => {
-            upgrade_cloud(options, &org_slug, &name, cfg_ver, opts)
+            upgrade_cloud(cmd, &org_slug, &name, cfg_ver, opts)
         }
     }?;
 
@@ -250,7 +249,9 @@ pub fn upgrade_instance(options: &Command, opts: &crate::options::Options) -> an
             msg!(
                 "{BRANDING} instance is up to date with \
                 the specification in `{}`.",
-                config_path
+                project
+                    .location
+                    .manifest
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
@@ -261,7 +262,9 @@ pub fn upgrade_instance(options: &Command, opts: &crate::options::Options) -> an
                     "To update `{}` and upgrade to this version, \
                         run:\n    {} project upgrade --to-latest",
                     BRANDING_CLI_CMD,
-                    config_path
+                    project
+                        .location
+                        .manifest
                         .file_name()
                         .unwrap_or_default()
                         .to_string_lossy()
@@ -275,7 +278,7 @@ pub fn upgrade_instance(options: &Command, opts: &crate::options::Options) -> an
 
 fn upgrade_local(
     cmd: &Command,
-    config: &config::Config,
+    project: &project::Context,
     inst: InstanceInfo,
     to_version: &Query,
     opts: &crate::options::Options,
@@ -320,7 +323,7 @@ fn upgrade_local(
             if pkg_ver.is_compatible(&inst_ver) && !cmd.force {
                 upgrade::upgrade_compatible(inst, pkg)?;
             } else {
-                migrations::upgrade_check::to_version(&pkg, config)?;
+                migrations::upgrade_check::to_version(&pkg, project)?;
                 upgrade::upgrade_incompatible(inst, pkg, cmd.non_interactive)?;
             }
         }

@@ -369,7 +369,7 @@ fn project() {
         .code(0)
         .stderr(ends_with(
             "Created \
-            ./priv/dbschema/migrations/00002-m1e5vq3.edgeql, \
+            priv/dbschema/migrations/00002-m1e5vq3.edgeql, \
             id: m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n",
         ));
     SERVER

@@ -19,8 +19,8 @@ use crate::migrations::migrate::{apply_migration, ApplyMigrationError};
 use crate::migrations::migration;
 use crate::migrations::options::UpgradeCheck;
 use crate::migrations::timeout;
-use crate::portable::config::Config;
 use crate::portable::local::InstallInfo;
+use crate::portable::project;
 use crate::portable::repository::{self, PackageInfo, Query};
 use crate::portable::server::install;
 use crate::print::{self, msg, Highlight};
@@ -112,18 +112,18 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Resu
 }
 
 #[cfg(windows)]
-pub fn to_version(_: &PackageInfo, _: &Config) -> anyhow::Result<()> {
+pub fn to_version(_: &PackageInfo, _: &project::Context) -> anyhow::Result<()> {
     unreachable!();
 }
 
 #[cfg(unix)]
-pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
+pub fn to_version(pkg: &PackageInfo, project: &project::Context) -> anyhow::Result<()> {
     use const_format::concatcp;
 
     use crate::branding::BRANDING;
 
     let info = install::package(pkg).context(concatcp!("error installing ", BRANDING))?;
-    let ctx = Context::for_project(config)?;
+    let ctx = Context::for_project(project)?;
     spawn_and_check(&info, ctx, false)
 }
 

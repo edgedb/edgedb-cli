@@ -1,5 +1,6 @@
 pub mod info;
 pub mod init;
+pub mod manifest;
 pub mod unlink;
 pub mod upgrade;
 
@@ -10,22 +11,21 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use fn_error_context::context;
-use gel_tokio::get_project_path;
 
 use gel_tokio::Builder;
 
 use crate::branding::QUERY_TAG;
-use crate::branding::{BRANDING_SCHEMA_FILE_EXT, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{BRANDING_SCHEMA_FILE_EXT, MANIFEST_FILE_DISPLAY_NAME};
 use crate::cloud::client::CloudClient;
 use crate::connect::Connection;
 use crate::platform::{bytes_to_path, path_bytes};
 use crate::platform::{config_dir, is_schema_file, symlink_dir, tmp_file_path};
-use crate::portable::config;
 use crate::portable::local::InstanceInfo;
 use crate::portable::options::InstanceName;
 use crate::portable::repository::Query;
 use crate::portable::ver;
-use crate::print::{self};
+use crate::print;
+use crate::print::AsRelativeToCurrentDir;
 
 pub fn run(cmd: &Command, options: &crate::options::Options) -> anyhow::Result<()> {
     use crate::portable::project::Subcommands::*;
@@ -236,7 +236,7 @@ impl Handle<'_> {
             Ok(inst_ver) => {
                 print::warn!(
                     "WARNING: existing instance has version {}, \
-                    but {} is required by {CONFIG_FILE_DISPLAY_NAME}",
+                    but {} is required by {MANIFEST_FILE_DISPLAY_NAME}",
                     inst_ver,
                     ver_query.display()
                 );
@@ -248,7 +248,7 @@ impl Handle<'_> {
     }
 }
 
-#[context("cannot read schema directory `{}`", path.display())]
+#[context("cannot read schema directory `{}`", path.as_relative().display())]
 fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
     let dir = match fs::read_dir(path) {
         Ok(dir) => dir,
@@ -271,7 +271,7 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
     return Ok(false);
 }
 
-#[context("cannot create default schema in `{}`", dir.display())]
+#[context("cannot create default schema in `{}`", dir.as_relative().display())]
 fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     fs::create_dir_all(dir)?;
     fs::create_dir_all(dir.join("migrations"))?;
@@ -298,16 +298,6 @@ fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[context("cannot write config `{}`", path.display())]
-fn write_config(path: &Path, version: &Query) -> anyhow::Result<()> {
-    let text = config::format_config(version);
-    let tmp = tmp_file_path(path);
-    fs::remove_file(&tmp).ok();
-    fs::write(&tmp, text)?;
-    fs::rename(&tmp, path)?;
-    Ok(())
-}
-
 #[context("cannot read instance name of {:?}", stash_dir)]
 pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(stash_dir.join("instance-name"))?;
@@ -326,19 +316,48 @@ pub fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
     Ok(Some(inst.trim().into()))
 }
 
-pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<Option<(PathBuf, PathBuf)>> {
-    // Create a temporary runtime. Not efficient, but only called at CLI startup.
-    let cli_option = cli_option.map(|p| p.to_owned());
-    let res = std::thread::spawn(move || {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(get_project_path(cli_option.as_deref(), true))
-    })
-    .join()
-    .unwrap()?;
-    Ok(res.map(|res| (res.parent().unwrap().to_owned(), res)))
+#[derive(Clone)]
+pub struct Context {
+    pub location: Location,
+    pub manifest: manifest::Manifest,
+}
+
+#[derive(Clone)]
+pub struct Location {
+    pub root: PathBuf,
+    pub manifest: PathBuf,
+}
+
+pub async fn find_project_async(override_dir: Option<&Path>) -> anyhow::Result<Option<Location>> {
+    let manifest = gel_tokio::get_project_path(override_dir, true).await?;
+
+    Ok(manifest.map(|manifest| Location {
+        root: manifest.parent().unwrap().to_owned(),
+        manifest,
+    }))
+}
+
+#[tokio::main(flavor = "current_thread")]
+pub async fn find_project(override_dir: Option<&Path>) -> anyhow::Result<Option<Location>> {
+    find_project_async(override_dir).await
+}
+
+pub async fn load_ctx(override_dir: Option<&Path>) -> anyhow::Result<Option<Context>> {
+    let Some(location) = find_project_async(override_dir).await? else {
+        return Ok(None);
+    };
+
+    let manifest = manifest::read(&location.manifest)?;
+    Ok(Some(Context { location, manifest }))
+}
+
+#[tokio::main(flavor = "current_thread")]
+pub async fn ensure_ctx(override_dir: Option<&Path>) -> anyhow::Result<Context> {
+    let Some(ctx) = load_ctx(override_dir).await? else {
+        return Err(anyhow::anyhow!("`{MANIFEST_FILE_DISPLAY_NAME}` not found, unable to perform this action without an initialized project."));
+    };
+
+    Ok(ctx)
 }
 
 pub fn find_project_dirs_by_instance(name: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -403,7 +422,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
                 continue;
             }
         };
-        eprintln!("  {}", dest.display());
+        eprintln!("  {}", dest.as_relative().display());
     }
 }
 

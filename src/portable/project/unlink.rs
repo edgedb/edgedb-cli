@@ -5,7 +5,7 @@ use anyhow::Context;
 use clap::ValueHint;
 use gel_tokio::get_stash_path;
 
-use crate::branding::CONFIG_FILE_DISPLAY_NAME;
+use crate::branding::MANIFEST_FILE_DISPLAY_NAME;
 use crate::commands::ExitCode;
 use crate::options::CloudOptions;
 use crate::portable::exit_codes;
@@ -15,11 +15,11 @@ use crate::print::{self, msg, Highlight};
 use crate::question;
 
 pub fn run(options: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let Some((project_dir, _)) = project::project_dir(options.project_dir.as_deref())? else {
-        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to unlink instance.");
+    let Some(project) = project::find_project(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{MANIFEST_FILE_DISPLAY_NAME}` not found, unable to unlink instance.");
     };
-    let canon = fs::canonicalize(&project_dir)
-        .with_context(|| format!("failed to canonicalize dir {project_dir:?}"))?;
+    let canon = fs::canonicalize(&project.root)
+        .with_context(|| format!("failed to canonicalize dir {:?}", project.root))?;
     let stash_path = get_stash_path(&canon)?;
 
     if stash_path.exists() {

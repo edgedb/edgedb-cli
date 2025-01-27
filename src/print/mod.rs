@@ -462,6 +462,22 @@ pub fn write_warn(line: impl fmt::Display) {
     }
 }
 
+pub trait AsRelativeToCurrentDir {
+    fn as_relative(&self) -> &Self;
+}
+
+impl AsRelativeToCurrentDir for std::path::Path {
+    fn as_relative(&self) -> &Self {
+        let curr_dir = std::env::current_dir().ok();
+
+        if let Some(stripped) = curr_dir.and_then(|wd| self.strip_prefix(&wd).ok()) {
+            stripped
+        } else {
+            self
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! warn {
     ($($args:tt)*) => {

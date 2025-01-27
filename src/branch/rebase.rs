@@ -7,7 +7,7 @@ use crate::connect::Connection;
 use crate::migrations::rebase::{
     do_rebase, get_diverging_migrations, write_rebased_migration_files,
 };
-use crate::portable::config::Config;
+use crate::portable::project;
 use crate::{migrations, print};
 use uuid::Uuid;
 
@@ -18,7 +18,10 @@ pub async fn main(
     cli_opts: &Options,
 ) -> anyhow::Result<()> {
     let current_branch = context.get_current_branch(source_connection).await?;
-    let project_config = context.get_project_config().await?.unwrap();
+    let project = context
+        .get_project()
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Merge must be used within a project"))?;
 
     if options.target_branch == current_branch {
         anyhow::bail!("Cannot rebase the current branch on top of itself");
@@ -34,7 +37,7 @@ pub async fn main(
         &temp_branch,
         source_connection,
         &mut temp_branch_connection,
-        &project_config,
+        &project,
         cli_opts,
         !options.no_apply,
     )
@@ -82,7 +85,7 @@ async fn rebase(
     branch: &str,
     source_connection: &mut Connection,
     target_connection: &mut Connection,
-    project_config: &Config,
+    project: &project::Context,
     cli_opts: &Options,
     apply_migrations: bool,
 ) -> anyhow::Result<()> {
@@ -90,7 +93,7 @@ async fn rebase(
 
     migrations.print_status();
 
-    let migration_context = migrations::Context::for_project(project_config)?;
+    let migration_context = migrations::Context::for_project(project)?;
     do_rebase(&mut migrations, &migration_context).await?;
 
     if apply_migrations {

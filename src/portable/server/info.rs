@@ -4,6 +4,7 @@ use edgedb_cli_derive::IntoArgs;
 use crate::portable::local;
 use crate::portable::repository::{Channel, Query, QueryOptions};
 use crate::portable::ver;
+use crate::print::AsRelativeToCurrentDir;
 use crate::table;
 
 pub fn run(cmd: &Command) -> anyhow::Result<()> {
@@ -39,7 +40,7 @@ pub fn run(cmd: &Command) -> anyhow::Result<()> {
                     let path = path.to_str().context("cannot convert path to a string")?;
                     println!("{}", serde_json::to_string(path)?);
                 } else {
-                    println!("{}", path.display());
+                    println!("{}", path.as_relative().display());
                 }
             }
             "version" => {
@@ -63,7 +64,10 @@ pub fn run(cmd: &Command) -> anyhow::Result<()> {
     } else {
         table::settings(&[
             ("Version", inst.version.to_string()),
-            ("Binary path", inst.server_path()?.display().to_string()),
+            (
+                "Binary path",
+                inst.server_path()?.as_relative().display().to_string(),
+            ),
         ]);
     }
     Ok(())
