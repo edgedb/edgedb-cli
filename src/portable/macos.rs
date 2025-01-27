@@ -272,6 +272,7 @@ fn _service_status(name: &str) -> Status {
     }
 }
 
+#[context("cannot stop and disable service")]
 pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     if is_service_loaded(name) {
         // bootout will fail if the service is not loaded (e.g. manually-
@@ -288,6 +289,23 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         log::info!("Removing unit file {}", unit_path.display());
         fs::remove_file(unit_path)?;
     }
+
+    // Clear the runstate dir of socket files and symlinks - macOS wouldn't
+    // delete UNIX domain socket files after server shutdown, which may lead to
+    // issues in upgrades
+    #[cfg(unix)]
+    for entry in fs::read_dir(runstate_dir(name)?)? {
+        use std::os::unix::fs::FileTypeExt;
+        let entry = entry?;
+        let path = entry.path();
+
+        if let Ok(metadata) = path.metadata() {
+            if metadata.file_type().is_socket() || metadata.file_type().is_symlink() {
+                fs::remove_file(&path)?;
+            }
+        }
+    }
+
     Ok(found)
 }
 
