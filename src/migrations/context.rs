@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::migrations::options::MigrationConfig;
 use crate::portable::config;
 
-use edgedb_tokio::get_project_path;
+use gel_tokio::get_project_path;
 
 pub struct Context {
     pub schema_dir: PathBuf,

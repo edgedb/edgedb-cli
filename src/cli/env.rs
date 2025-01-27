@@ -1,4 +1,4 @@
-use edgedb_tokio::define_env;
+use gel_tokio::define_env;
 use std::path::PathBuf;
 
 define_env! {

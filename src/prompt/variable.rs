@@ -13,10 +13,10 @@ use std::sync::Arc;
 
 use bigdecimal::BigDecimal;
 use colorful::Colorful;
-use edgedb_protocol::codec::NamedTupleShape;
-use edgedb_protocol::model;
-use edgedb_protocol::value::Value;
 use edgeql_parser::helpers::unquote_string;
+use gel_protocol::codec::NamedTupleShape;
+use gel_protocol::model;
+use gel_protocol::value::Value;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while_m_n};
 use nom::character::complete::{alphanumeric1, char, digit1, i16, i32, i64, multispace0};
@@ -759,10 +759,10 @@ mod tests {
         NamedTuple, ParseResult, Str, Tuple, Uuid, VariableInput,
     };
     use bigdecimal::BigDecimal;
-    use edgedb_protocol::codec::NamedTupleShape;
-    use edgedb_protocol::descriptors::{TupleElement, TypePos};
-    use edgedb_protocol::model;
-    use edgedb_protocol::value::Value;
+    use gel_protocol::codec::NamedTupleShape;
+    use gel_protocol::descriptors::{TupleElement, TypePos};
+    use gel_protocol::model;
+    use gel_protocol::value::Value;
     use std::collections::HashMap;
     use std::convert::TryFrom;
     use std::str::FromStr;

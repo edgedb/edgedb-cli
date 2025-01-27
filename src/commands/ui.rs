@@ -16,7 +16,7 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
     let cfg = connector.get()?;
 
     let url = match cfg.instance_name() {
-        Some(edgedb_tokio::InstanceName::Cloud {
+        Some(gel_tokio::InstanceName::Cloud {
             org_slug: org,
             name,
         }) => get_cloud_ui_url(cmd, org, name, cfg, opts)?,
@@ -43,7 +43,7 @@ fn get_cloud_ui_url(
     cmd: &UI,
     org: &str,
     name: &str,
-    cfg: &edgedb_tokio::Config,
+    cfg: &gel_tokio::Config,
     opts: &Options,
 ) -> anyhow::Result<String> {
     let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
@@ -61,7 +61,7 @@ fn get_cloud_ui_url(
     Ok(url)
 }
 
-fn get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<String> {
+fn get_local_ui_url(cmd: &UI, cfg: &gel_tokio::Config) -> anyhow::Result<String> {
     let secret_key = _get_local_ui_secret_key(cfg)?;
     let mut url = _get_local_ui_url(cmd, cfg)?;
 
@@ -72,7 +72,7 @@ fn get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Stri
     Ok(url)
 }
 
-fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<String> {
+fn _get_local_ui_url(cmd: &UI, cfg: &gel_tokio::Config) -> anyhow::Result<String> {
     let mut url = cfg
         .http_url(false)
         .map(|s| s + "/ui")
@@ -130,7 +130,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
     Ok(url)
 }
 
-fn _get_local_ui_secret_key(cfg: &edgedb_tokio::Config) -> anyhow::Result<Option<String>> {
+fn _get_local_ui_secret_key(cfg: &gel_tokio::Config) -> anyhow::Result<Option<String>> {
     let local_inst = cfg.local_instance_name();
     let local_info = local_inst
         .map(local::InstanceInfo::try_read)

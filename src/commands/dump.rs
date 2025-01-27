@@ -9,7 +9,7 @@ use tokio::task;
 
 use tokio_stream::StreamExt;
 
-use edgedb_errors::UnknownDatabaseError;
+use gel_errors::UnknownDatabaseError;
 
 use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
@@ -210,7 +210,7 @@ pub async fn dump_all(
                 dump_db(&mut db_conn, options, &filename, include_secrets, true).await?;
             }
             Err(err) => {
-                if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
+                if let Some(e) = err.downcast_ref::<gel_errors::Error>() {
                     if e.is::<UnknownDatabaseError>() {
                         eprintln!("Database {database} no longer exists, skipping...");
                         continue;

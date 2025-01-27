@@ -6,12 +6,12 @@ use std::str::FromStr;
 use anyhow::Context;
 use clap::ValueHint;
 use const_format::concatcp;
-use edgedb_tokio::get_stash_path;
-use edgedb_tokio::PROJECT_FILES;
+use gel_tokio::get_stash_path;
+use gel_tokio::PROJECT_FILES;
 use rand::{thread_rng, Rng};
 
-use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgeql_parser::helpers::quote_name;
+use gel_errors::DuplicateDatabaseDefinitionError;
 
 use crate::branding::BRANDING_CLOUD;
 use crate::branding::QUERY_TAG;

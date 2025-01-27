@@ -9,10 +9,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use edgedb_tokio::get_project_path;
 use fn_error_context::context;
+use gel_tokio::get_project_path;
 
-use edgedb_tokio::Builder;
+use gel_tokio::Builder;
 
 use crate::branding::QUERY_TAG;
 use crate::branding::{BRANDING_SCHEMA_FILE_EXT, CONFIG_FILE_DISPLAY_NAME};

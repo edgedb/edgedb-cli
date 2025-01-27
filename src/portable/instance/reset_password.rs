@@ -7,8 +7,8 @@ use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
-use edgedb_tokio::credentials::Credentials;
 use edgeql_parser::helpers::{quote_name, quote_string};
+use gel_tokio::credentials::Credentials;
 
 use crate::branding::{BRANDING_CLOUD, QUERY_TAG};
 use crate::commands::ExitCode;

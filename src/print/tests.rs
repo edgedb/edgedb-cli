@@ -12,9 +12,9 @@ use crate::print::native::FormatExt;
 use crate::print::style::Styler;
 use crate::print::{self, Config, _native_format};
 use crate::repl::VectorLimit;
-use edgedb_protocol::codec::{ObjectShape, ShapeElement};
-use edgedb_protocol::model::Datetime;
-use edgedb_protocol::value::Value;
+use gel_protocol::codec::{ObjectShape, ShapeElement};
+use gel_protocol::model::Datetime;
+use gel_protocol::value::Value;
 
 struct UnfusedStream<'a, I>(Option<&'a [I]>);
 

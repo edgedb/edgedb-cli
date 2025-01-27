@@ -8,15 +8,15 @@ use colorful::Colorful;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot;
 
-use edgedb_errors::{ClientError, ProtocolEncodingError};
-use edgedb_errors::{Error, ErrorKind};
-use edgedb_protocol::common::{
+use gel_errors::{ClientError, ProtocolEncodingError};
+use gel_errors::{Error, ErrorKind};
+use gel_protocol::common::{
     InputLanguage as ServerInputLanguage, IoFormat, RawTypedesc, State as EdgeqlState,
 };
-use edgedb_protocol::model::Duration as EdbDuration;
-use edgedb_protocol::model::Uuid;
-use edgedb_protocol::server_message::TransactionState;
-use edgedb_protocol::value::Value;
+use gel_protocol::model::Duration as EdbDuration;
+use gel_protocol::model::Uuid;
+use gel_protocol::server_message::TransactionState;
+use gel_protocol::value::Value;
 
 use crate::analyze;
 use crate::async_util::timeout;
@@ -285,11 +285,11 @@ impl State {
         let inst = self.conn_params.get()?.instance_name().to_owned();
 
         let location = match inst {
-            Some(edgedb_tokio::InstanceName::Cloud {
+            Some(gel_tokio::InstanceName::Cloud {
                 org_slug: org,
                 name,
             }) => format!("{org}/{name}:{current_database}",),
-            Some(edgedb_tokio::InstanceName::Local(name)) => {
+            Some(gel_tokio::InstanceName::Local(name)) => {
                 format!("{name}:{current_database}",)
             }
             _ => format!("{current_database}"),

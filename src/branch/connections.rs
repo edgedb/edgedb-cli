@@ -3,7 +3,7 @@ use std::ops::Deref;
 use crate::commands::Options;
 use crate::connect::{Connection, ConnectionError, Connector};
 use crate::print;
-use edgedb_errors::UnknownDatabaseError;
+use gel_errors::UnknownDatabaseError;
 use uuid::Uuid;
 
 pub struct BranchConnection<'a> {

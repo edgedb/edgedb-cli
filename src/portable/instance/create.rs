@@ -35,7 +35,7 @@ use crate::print::{self, err_marker, msg, Highlight};
 use crate::process::{self, IntoArg};
 use crate::question;
 
-use edgedb_tokio::credentials::Credentials;
+use gel_tokio::credentials::Credentials;
 
 pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {

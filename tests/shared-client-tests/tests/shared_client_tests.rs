@@ -1,5 +1,5 @@
 use assert_cmd::Command;
-use edgedb_protocol::model::Duration;
+use gel_protocol::model::Duration;
 use predicates::reflection::PredicateReflection;
 use predicates::Predicate;
 use serde_json::Value;

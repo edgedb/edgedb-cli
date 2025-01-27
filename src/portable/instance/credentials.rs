@@ -4,7 +4,7 @@ use url::Url;
 use crate::options::{ConnectionOptions, Options};
 
 pub fn show_credentials(options: &Options, c: &Command) -> anyhow::Result<()> {
-    use edgedb_tokio::credentials::TlsSecurity;
+    use gel_tokio::credentials::TlsSecurity;
 
     let connector = options.block_on_create_connector()?;
     let builder = connector.get()?;

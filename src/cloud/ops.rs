@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use const_format::concatcp;
-use edgedb_tokio::credentials::Credentials;
-use edgedb_tokio::Builder;
+use gel_tokio::credentials::Credentials;
+use gel_tokio::Builder;
 use indicatif::ProgressBar;
 use tokio::time::{sleep, timeout};
 

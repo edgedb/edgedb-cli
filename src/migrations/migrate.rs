@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use edgedb_protocol::common::{
+use gel_protocol::common::{
     Capabilities, Cardinality, CompilationOptions, InputLanguage, IoFormat,
 };
 use indexmap::IndexMap;
@@ -533,7 +533,7 @@ async fn execute_with_parse_callback(
     cli: &mut Connection,
     query: &str,
     after_parse: impl FnOnce(),
-) -> Result<(), edgedb_errors::Error> {
+) -> Result<(), gel_errors::Error> {
     let opts = CompilationOptions {
         implicit_limit: None,
         implicit_typenames: false,

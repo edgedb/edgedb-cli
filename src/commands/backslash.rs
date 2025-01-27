@@ -8,9 +8,9 @@ use once_cell::sync::Lazy;
 use prettytable::{Cell, Row, Table};
 use regex::Regex;
 
-use edgedb_errors::display::display_error_verbose;
-use edgedb_errors::Error;
-use edgedb_protocol::model::Duration;
+use gel_errors::display::display_error_verbose;
+use gel_errors::Error;
+use gel_protocol::model::Duration;
 
 use crate::analyze;
 use crate::branding::BRANDING;

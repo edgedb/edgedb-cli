@@ -5,7 +5,7 @@ use std::process::Command;
 use crate::branding::BRANDING;
 use crate::connect::Connection;
 use anyhow::Context;
-use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
+use gel_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::commands::Options;
 use crate::interrupt;
