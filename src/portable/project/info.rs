@@ -6,17 +6,17 @@ use const_format::concatcp;
 use gel_tokio::get_stash_path;
 
 use crate::branding::BRANDING_CLOUD;
-use crate::branding::{BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
 use crate::commands::ExitCode;
 use crate::portable::project;
 use crate::print::{self, msg, Highlight};
 use crate::table;
 
 pub fn run(options: &Command) -> anyhow::Result<()> {
-    let Some((root, _)) = project::project_dir(options.project_dir.as_deref())? else {
-        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to get project info.");
+    let Some(project) = project::find_project(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{MANIFEST_FILE_DISPLAY_NAME}` not found, unable to get project info.");
     };
-    let stash_dir = get_stash_path(&root)?;
+    let stash_dir = get_stash_path(&project.root)?;
     if !stash_dir.exists() {
         msg!(
             "{} {} Run `{BRANDING_CLI_CMD} project init`.",
@@ -60,11 +60,11 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
             serde_json::to_string_pretty(&JsonInfo {
                 instance_name: &instance_name,
                 cloud_profile: cloud_profile.as_deref(),
-                root: &root,
+                root: &project.root,
             })?
         );
     } else {
-        let root = root.display().to_string();
+        let root = project.root.display().to_string();
         let mut rows: Vec<(&str, String)> =
             vec![("Instance name", instance_name), ("Project root", root)];
         if let Some(profile) = cloud_profile.as_deref() {

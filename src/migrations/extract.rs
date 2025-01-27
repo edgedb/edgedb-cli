@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use fs_err as fs;
 use std::iter::Once;
-use std::path::Path;
 
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -10,6 +9,7 @@ use crate::migrations::db_migration;
 use crate::migrations::options::ExtractMigrations;
 use crate::migrations::{create, migration, Context};
 use crate::portable::exit_codes;
+use crate::print::AsRelativeToCurrentDir;
 use crate::{print, question};
 
 pub struct DatabaseMigration {
@@ -76,7 +76,7 @@ pub async fn extract(
                                      migration recorded in the database, \
                                      use `--force` to overwrite the file \
                                      with the database version of migration",
-                                    migration_file.path.display(),
+                                    migration_file.path.as_relative().display(),
                                 )
                             }
                         } else if !params.force {
@@ -85,7 +85,7 @@ pub async fn extract(
                                  migration recorded in the database, \
                                  overwrite with the database version \
                                  of migration?",
-                                migration_file.path.display()
+                                migration_file.path.as_relative().display()
                             ));
                             if !q.ask()? {
                                 print::error!("Canceled.");
@@ -106,14 +106,14 @@ pub async fn extract(
                             "migration in \"{}\" is not present in the \
                              database, use `--force` to automatically remove \
                              the non-matching files",
-                            migration_file.path.display()
+                            migration_file.path.as_relative().display()
                         );
                     }
                 } else if !params.force {
                     let q = question::Confirm::new_dangerous(format!(
                         "Migration \"{}\" is not present in the database, \
                          remove the non-matching file?",
-                        migration_file.path.display()
+                        migration_file.path.as_relative().display()
                     ));
                     if !q.ask()? {
                         print::error!("Canceled.");
@@ -131,7 +131,10 @@ pub async fn extract(
     let to_migrations_dir = src_ctx.schema_dir.join("migrations");
     if !to_migrations_dir.is_dir() {
         if src_ctx.schema_dir.is_dir() {
-            print::warn!("Creating directory {}", to_migrations_dir.display());
+            print::warn!(
+                "Creating directory {}",
+                to_migrations_dir.as_relative().display()
+            );
             fs::create_dir(to_migrations_dir)?;
         } else {
             anyhow::bail!(
@@ -148,13 +151,13 @@ pub async fn extract(
             .schema_dir
             .join("migrations")
             .join(from.file_name().expect(""));
-        print::success_msg("Writing", to.display());
+        print::success_msg("Writing", to.as_relative().display());
         fs::copy(from, &to)
-            .with_context(|| format!("Cannot write {}", relative_to_current_dir(&to).display()))?;
+            .with_context(|| format!("Cannot write {}", to.as_relative().display()))?;
         updated = true;
     }
     for path in to_delete {
-        print::success_msg("Removing", path.display());
+        print::success_msg("Removing", path.as_relative().display());
         fs::remove_file(path)?;
         updated = true;
     }
@@ -165,14 +168,4 @@ pub async fn extract(
         );
     }
     Ok(())
-}
-
-fn relative_to_current_dir(path: &Path) -> &Path {
-    let curr_dir = std::env::current_dir().ok();
-
-    if let Some(stripped) = curr_dir.and_then(|wd| path.strip_prefix(&wd).ok()) {
-        stripped
-    } else {
-        path
-    }
 }

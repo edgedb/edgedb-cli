@@ -1,88 +1,74 @@
+//# Project manifest
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use fn_error_context::context;
 
 use toml::Spanned;
 
-use crate::branding::CONFIG_FILE_DISPLAY_NAME;
+use crate::branding::MANIFEST_FILE_DISPLAY_NAME;
 use crate::commands::ExitCode;
 use crate::platform::tmp_file_path;
 use crate::portable::exit_codes;
 use crate::portable::repository::{Channel, Query};
 use crate::print::{self, msg, Highlight};
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct SrcConfig {
-    #[serde(alias = "edgedb")]
-    pub instance: SrcInstance,
-    pub project: Option<SrcProject>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct SrcInstance {
-    #[serde(default)]
-    pub server_version: Option<toml::Spanned<Query>>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct SrcProject {
-    #[serde(default)]
-    pub schema_dir: Option<String>,
-    #[serde(flatten)]
-    #[allow(dead_code)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-#[derive(Debug)]
-pub struct Config {
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Manifest {
     pub instance: Instance,
-    pub project: Project,
+    pub project: Option<Project>,
 }
 
-#[derive(Debug)]
-pub struct Instance {
-    pub server_version: Query,
-}
-
-#[derive(Debug)]
-pub struct Project {
-    pub schema_dir: PathBuf,
-}
-
-pub fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
-    for key in extra.keys() {
-        log::warn!("Unknown config option `{}{}`", prefix, key.escape_default());
+impl Manifest {
+    pub fn project(&self) -> Project {
+        self.project.clone().unwrap_or_default()
     }
 }
 
-pub fn format_config(version: &Query) -> String {
-    format!(
-        "\
-        [instance]\n\
-        server-version = {:?}\n\
-    ",
-        version.as_config_value()
-    )
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Instance {
+    #[serde(serialize_with = "serialize_query")]
+    pub server_version: Query,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Project {
+    pub schema_dir: Option<PathBuf>,
+}
+
+impl Project {
+    pub fn get_schema_dir(&self) -> PathBuf {
+        self.schema_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("dbschema"))
+    }
+
+    pub fn resolve_schema_dir(&self, root: &Path) -> anyhow::Result<PathBuf> {
+        let schema_dir = root.join(self.get_schema_dir());
+
+        if !schema_dir.exists() {
+            return Ok(schema_dir);
+        }
+
+        fs::canonicalize(&schema_dir)
+            .with_context(|| format!("failed to canonicalize dir {schema_dir:?}"))
+    }
 }
 
 #[context("error reading project config `{}`", path.display())]
-pub fn read(path: &Path) -> anyhow::Result<Config> {
+pub fn read(path: &Path) -> anyhow::Result<Manifest> {
     let text = fs::read_to_string(path)?;
     let toml = toml::de::Deserializer::new(&text);
-    let val: SrcConfig = serde_path_to_error::deserialize(toml)?;
+    let val: SrcManifest = serde_path_to_error::deserialize(toml)?;
     warn_extra(&val.extra, "");
     warn_extra(&val.instance.extra, "instance.");
 
-    return Ok(Config {
+    return Ok(Manifest {
         instance: Instance {
             server_version: val
                 .instance
@@ -93,19 +79,29 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                     version: None,
                 }),
         },
-        project: Project {
+        project: Some(Project {
             schema_dir: val
                 .project
                 .and_then(|p| p.schema_dir)
-                .map(|s| s.into())
-                .unwrap_or_else(|| path.parent().unwrap_or(Path::new("")).join("dbschema")),
-        },
+                .map(|s| PathBuf::from(s.into_inner())),
+        }),
     });
+}
+
+#[context("cannot write config `{}`", path.display())]
+pub fn write(path: &Path, manifest: &Manifest) -> anyhow::Result<()> {
+    let text = toml::to_string(manifest).unwrap();
+
+    let tmp = tmp_file_path(path);
+    fs::remove_file(&tmp).ok();
+    fs::write(&tmp, text)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
 }
 
 /// Modify a field in a config of type `Cfg` that was deserialized from `input`.
 /// The field is selected with the `selector` function.
-pub fn modify_config<Cfg, Selector, Val, ToStr>(
+fn modify<Cfg, Selector, Val, ToStr>(
     parsed: &Cfg,
     input: &str,
     selector: Selector,
@@ -138,11 +134,11 @@ where
         return Ok(Some(out));
     }
 
-    print::error!("Invalid {CONFIG_FILE_DISPLAY_NAME}: missing {field_name}");
+    print::error!("Invalid {MANIFEST_FILE_DISPLAY_NAME}: missing {field_name}");
     Err(ExitCode::new(exit_codes::INVALID_CONFIG).into())
 }
 
-pub fn read_modify_write<Cfg, Selector, Val, ToStr>(
+fn read_modify_write<Cfg, Selector, Val, ToStr>(
     path: &Path,
     selector: Selector,
     field_name: &'static str,
@@ -159,8 +155,7 @@ where
     let deserializer = toml::de::Deserializer::new(&input);
     let parsed: Cfg = serde_path_to_error::deserialize(deserializer)?;
 
-    if let Some(new_contents) = modify_config(&parsed, &input, selector, field_name, value, to_str)?
-    {
+    if let Some(new_contents) = modify(&parsed, &input, selector, field_name, value, to_str)? {
         let tmp = tmp_file_path(path);
         fs::remove_file(&tmp).ok();
         fs::write(&tmp, new_contents)?;
@@ -181,11 +176,53 @@ pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
     );
     read_modify_write(
         config,
-        |v: &SrcConfig| &v.instance.server_version,
+        |v: &SrcManifest| &v.instance.server_version,
         "server-version",
         ver,
         Query::as_config_value,
     )
+}
+
+fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
+    for key in extra.keys() {
+        log::warn!("Unknown config option `{}{}`", prefix, key.escape_default());
+    }
+}
+
+fn serialize_query<S>(query: &Query, s: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    s.serialize_str(&query.as_config_value())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SrcManifest {
+    #[serde(alias = "edgedb")]
+    pub instance: SrcInstance,
+    pub project: Option<SrcProject>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, toml::Value>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SrcInstance {
+    #[serde(default)]
+    pub server_version: Option<toml::Spanned<Query>>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, toml::Value>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SrcProject {
+    #[serde(default)]
+    pub schema_dir: Option<toml::Spanned<String>>,
+    #[serde(flatten)]
+    #[allow(dead_code)]
+    pub extra: BTreeMap<String, toml::Value>,
 }
 
 #[cfg(test)]
@@ -283,12 +320,12 @@ mod test {
 
     fn set_toml_version(data: &str, version: &super::Query) -> anyhow::Result<Option<String>> {
         let toml = toml::de::Deserializer::new(data);
-        let parsed: super::SrcConfig = serde_path_to_error::deserialize(toml)?;
+        let parsed: super::SrcManifest = serde_path_to_error::deserialize(toml)?;
 
-        super::modify_config(
+        super::modify(
             &parsed,
             data,
-            |v: &super::SrcConfig| &v.instance.server_version,
+            |v: &super::SrcManifest| &v.instance.server_version,
             "server-version",
             version,
             super::Query::as_config_value,

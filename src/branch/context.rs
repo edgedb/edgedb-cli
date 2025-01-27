@@ -5,11 +5,11 @@ use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
 use crate::platform::tmp_file_path;
-use crate::portable::config::Config;
 use crate::portable::options::InstanceName;
 use crate::portable::project;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 pub struct Context {
     /// Instance name provided either with --instance or inferred from the project.
@@ -25,6 +25,9 @@ pub struct Context {
 
     /// Project dir if it was resolved by instance_name or current directory
     project_dir: Option<PathBuf>,
+
+    /// Project manifest cache
+    manifest_cache: Mutex<Option<Option<project::Context>>>,
 }
 
 impl Context {
@@ -77,6 +80,7 @@ impl Context {
             project_dir: project_dir.map(|p| p.to_owned()),
             instance_name,
             current_branch: branch,
+            manifest_cache: Mutex::new(None),
         })
     }
 
@@ -144,11 +148,15 @@ impl Context {
         }
     }
 
-    pub async fn get_project_config(&self) -> anyhow::Result<Option<Config>> {
-        let project_dir = get_project_path(None, true).await?;
-        let Some(path) = &project_dir else {
-            return Ok(None);
-        };
-        Ok(Some(crate::portable::config::read(path)?))
+    pub async fn get_project(&self) -> anyhow::Result<Option<project::Context>> {
+        if let Some(mani) = &*self.manifest_cache.lock().unwrap() {
+            return Ok(mani.clone());
+        }
+
+        let manifest = project::load_ctx(None).await?;
+
+        let mut cache_lock = self.manifest_cache.lock().unwrap();
+        *cache_lock = Some(manifest.clone());
+        Ok(manifest)
     }
 }

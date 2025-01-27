@@ -48,8 +48,8 @@ pub const BRANDING_SCHEMA_FILE_EXT: &str = if cfg!(feature = "gel") {
 /// The WSL distribution name.
 pub const BRANDING_WSL: &str = "EdgeDB.WSL.1";
 
-/// The display name for the configuration file.
-pub const CONFIG_FILE_DISPLAY_NAME: &str = if cfg!(feature = "gel") {
+/// The display name for the project manifest file.
+pub const MANIFEST_FILE_DISPLAY_NAME: &str = if cfg!(feature = "gel") {
     "`gel.toml` (or `edgedb.toml`)"
 } else {
     "`edgedb.toml`"

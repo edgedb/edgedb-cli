@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
 
 use const_format::concatcp;
+
 use edgeql_parser::helpers::quote_string;
-use gel_tokio::{get_project_path, Error};
+use gel_tokio::Error;
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
@@ -13,6 +14,8 @@ use crate::connect::{Connection, Connector};
 use crate::interrupt::Interrupt;
 use crate::migrations::{self, dev_mode};
 use crate::options::Options;
+use crate::portable::project;
+use crate::print::AsRelativeToCurrentDir;
 use crate::watch::options::WatchCommand;
 
 const STABLE_TIME: Duration = Duration::from_millis(100);
@@ -50,20 +53,16 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .thread_name("watch")
         .enable_all()
         .build()?;
-    let project_path = match runtime.block_on(get_project_path(None, true))? {
-        Some(proj) => proj,
-        None => anyhow::bail!(
-            "The `{BRANDING_CLI_CMD} watch` command currently only \
-             works for projects. Run `{BRANDING_CLI_CMD} project init` first."
-        ),
-    };
+    let project = project::ensure_ctx(None)?;
     let mut ctx = WatchContext {
         connector: options.block_on_create_connector()?,
-        migration: migrations::Context::for_watch(&project_path)?,
+        migration: migrations::Context::for_project(&project)?,
         last_error: false,
     };
-    let project_dir = project_path.parent().unwrap();
-    log::info!("Initialized in project dir {:?}", project_dir);
+    log::info!(
+        "Initialized in project dir {}",
+        project.location.root.as_relative().display()
+    );
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
         res.map_err(|e| {
@@ -72,14 +71,17 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .ok();
         tx.send(()).unwrap();
     })?;
-    watch.watch(&project_path, RecursiveMode::NonRecursive)?;
+    watch.watch(&project.location.root, RecursiveMode::NonRecursive)?;
     watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
 
     runtime.block_on(ctx.do_update())?;
 
     eprintln!("{BRANDING} Watch initialized.");
     eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
-    eprintln!("Monitoring {project_dir:?}.");
+    eprintln!(
+        "Monitoring {}.",
+        project.location.root.as_relative().display()
+    );
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime
         .block_on(ctx.try_connect_and_clear_error())

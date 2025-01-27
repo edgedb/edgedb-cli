@@ -14,8 +14,8 @@ pub async fn main(
     cli_opts: &Options,
 ) -> anyhow::Result<()> {
     let current_branch = context.get_current_branch(source_connection).await?;
-    let project_config = context
-        .get_project_config()
+    let project = context
+        .get_project()
         .await?
         .ok_or_else(|| anyhow::anyhow!("Merge must be used within a project"))?;
 
@@ -30,7 +30,7 @@ pub async fn main(
             None => anyhow::bail!("The branch '{}' doesn't exist", cmd.target_branch),
         };
 
-    let migration_context = migrations::Context::for_project(&project_config)?;
+    let migration_context = migrations::Context::for_project(&project)?;
     let mut merge_migrations =
         get_merge_migrations(source_connection, &mut target_connection).await?;
 
