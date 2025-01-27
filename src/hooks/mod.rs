@@ -1,11 +1,12 @@
-use crate::{portable::project, print};
+use crate::portable::project;
+use crate::print::{self, Highlight};
 
 pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Result<()> {
     let Some(hook) = get_hook(action, &project.manifest) else {
         return Ok(());
     };
 
-    print::msg!("hook {action}: {hook}");
+    print::msg!("{}", format!("hook {action}: {hook}").fade());
 
     // run
     let status = std::process::Command::new("/bin/sh")

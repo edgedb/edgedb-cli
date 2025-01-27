@@ -30,7 +30,7 @@ pub async fn main(
             None => anyhow::bail!("The branch '{}' doesn't exist", cmd.target_branch),
         };
 
-    let migration_context = migrations::Context::for_project(&project)?;
+    let migration_context = migrations::Context::for_project(project)?;
     let mut merge_migrations =
         get_merge_migrations(source_connection, &mut target_connection).await?;
 

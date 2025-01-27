@@ -18,6 +18,7 @@ use crate::commands::Options;
 use crate::connect::{Connection, ResponseStream};
 use crate::error_display::print_query_error;
 use crate::hint::HintExt;
+use crate::hooks;
 use crate::migrations::context::Context;
 use crate::migrations::db_migration;
 use crate::migrations::db_migration::{DBMigration, MigrationGeneratedBy};
@@ -100,7 +101,7 @@ pub async fn migrate(
 }
 
 async fn do_migrate(cli: &mut Connection, migrate: &Migrate) -> Result<(), anyhow::Error> {
-    let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet).await?;
+    let ctx = Context::for_migration_config(&migrate.cfg, migrate.quiet).await?;
     if migrate.dev_mode {
         // TODO(tailhook) figure out progressbar in non-quiet mode
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
@@ -448,30 +449,40 @@ pub async fn apply_migrations(
     ctx: &Context,
     single_transaction: bool,
 ) -> anyhow::Result<()> {
-    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    async_try! {
-        async {
-            if single_transaction {
-                execute(cli, "START TRANSACTION", None).await?;
-                async_try! {
-                    async {
-                        apply_migrations_inner(cli, migrations, !ctx.quiet).await
-                    },
-                    except async {
-                        execute_if_connected(cli, "ROLLBACK").await
-                    },
-                    else async {
-                        execute(cli, "COMMIT", None).await
-                    }
-                }
-            } else {
-                apply_migrations_inner(cli, migrations, !ctx.quiet).await
-            }
-        },
-        finally async {
-            timeout::restore_for_transaction(cli, old_timeout).await
-        }
+    if let Some(project) = &ctx.project {
+        hooks::on_action("migration.apply.before", project)?;
     }
+
+    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    {
+        async_try! {
+            async {
+                if single_transaction {
+                    execute(cli, "START TRANSACTION", None).await?;
+                    async_try! {
+                        async {
+                            apply_migrations_inner(cli, migrations, !ctx.quiet).await
+                        },
+                        except async {
+                            execute_if_connected(cli, "ROLLBACK").await
+                        },
+                        else async {
+                            execute(cli, "COMMIT", None).await
+                        }
+                    }
+                } else {
+                    apply_migrations_inner(cli, migrations, !ctx.quiet).await
+                }
+            },
+            finally async {
+                timeout::restore_for_transaction(cli, old_timeout).await
+            }
+        }
+    }?;
+    if let Some(project) = &ctx.project {
+        hooks::on_action("migration.apply.after", project)?;
+    }
+    Ok(())
 }
 
 pub async fn apply_migration(

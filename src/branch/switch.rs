@@ -2,7 +2,8 @@ use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::connect::Connector;
-use crate::{branch, hooks};
+use crate::print::Highlight;
+use crate::{branch, hooks, print};
 
 pub async fn run(
     options: &Command,
@@ -64,9 +65,10 @@ pub async fn run(
         hooks::on_action("branch.switch.before", project)?;
     }
 
-    eprintln!(
+    print::msg!(
         "Switching from '{}' to '{}'",
-        current_branch, options.target_branch
+        current_branch.emphasize(),
+        options.target_branch.emphasize()
     );
 
     context

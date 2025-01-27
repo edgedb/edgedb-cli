@@ -367,7 +367,7 @@ pub async fn ensure_ctx(override_dir: Option<&Path>) -> anyhow::Result<Context> 
 }
 
 impl Context {
-    fn resolve_schema_dir(&self) -> anyhow::Result<PathBuf> {
+    pub fn resolve_schema_dir(&self) -> anyhow::Result<PathBuf> {
         self.manifest
             .project()
             .resolve_schema_dir(&self.location.root)

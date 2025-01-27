@@ -56,12 +56,12 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
     let project = project::ensure_ctx(None)?;
     let mut ctx = WatchContext {
         connector: options.block_on_create_connector()?,
-        migration: migrations::Context::for_project(&project)?,
+        migration: migrations::Context::for_project(project)?,
         last_error: false,
     };
     log::info!(
         "Initialized in project dir {}",
-        project.location.root.as_relative().display()
+        ctx.project().location.root.as_relative().display()
     );
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
@@ -71,7 +71,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .ok();
         tx.send(()).unwrap();
     })?;
-    watch.watch(&project.location.root, RecursiveMode::NonRecursive)?;
+    watch.watch(&ctx.project().location.root, RecursiveMode::NonRecursive)?;
     watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
 
     runtime.block_on(ctx.do_update())?;
@@ -80,7 +80,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
     eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
     eprintln!(
         "Monitoring {}.",
-        project.location.root.as_relative().display()
+        ctx.project().location.root.as_relative().display()
     );
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime
@@ -186,6 +186,11 @@ impl WatchContext {
             clear_error(&mut cli).await;
         }
         Ok(())
+    }
+    fn project(&self) -> &project::Context {
+        // SAFETY: watch can only be run within projects.
+        // We create Self::migration using migration::Context::for_project
+        self.migration.project.as_ref().unwrap()
     }
 }
 
