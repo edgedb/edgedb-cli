@@ -1180,7 +1180,6 @@ async fn migrate(inst: &project::Handle<'_>, ask_for_running: bool) -> anyhow::R
 async fn migrate_async(inst: &project::Handle<'_>, ask_for_running: bool) -> anyhow::Result<()> {
     use crate::commands::Options;
     use crate::migrations::options::{Migrate, MigrationConfig};
-    use Action::*;
 
     #[derive(Clone, Copy)]
     enum Action {
@@ -1201,28 +1200,31 @@ async fn migrate_async(inst: &project::Handle<'_>, ask_for_running: bool) -> any
                     "Cannot connect to instance {:?}. Options:",
                     inst.name,
                 ));
-                q.option("Start the service (if possible).", Service);
+                q.option("Start the service (if possible).", Action::Service);
                 q.option(
                     "Start in the foreground, \
                           apply migrations and shut down.",
-                    Run,
+                    Action::Run,
                 );
-                q.option("Instance has been started manually, retry connect", Retry);
-                q.option("Skip migrations.", Skip);
+                q.option(
+                    "Instance has been started manually, retry connect",
+                    Action::Retry,
+                );
+                q.option("Skip migrations.", Action::Skip);
                 match q.async_ask().await? {
-                    Service => match start(inst) {
+                    Action::Service => match start(inst) {
                         Ok(()) => continue,
                         Err(e) => {
                             print::error!("{e}");
                             continue;
                         }
                     },
-                    Run => {
+                    Action::Run => {
                         run_and_migrate(inst)?;
                         return Ok(());
                     }
-                    Retry => continue,
-                    Skip => {
+                    Action::Retry => continue,
+                    Action::Skip => {
                         print::warn!("Skipping migrations.");
                         msg!(
                             "You can use `{BRANDING_CLI_CMD} migrate` to apply migrations \

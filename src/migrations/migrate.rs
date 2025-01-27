@@ -90,20 +90,16 @@ impl<'a> AsOperations for Vec<Operation<'a>> {
 
 pub async fn migrate(
     cli: &mut Connection,
-    options: &Options,
+    _options: &Options,
     migrate: &Migrate,
 ) -> Result<(), anyhow::Error> {
     let old_state = cli.set_ignore_error_state();
-    let res = _migrate(cli, options, migrate).await;
+    let res = do_migrate(cli, migrate).await;
     cli.restore_state(old_state);
     res
 }
 
-async fn _migrate(
-    cli: &mut Connection,
-    _options: &Options,
-    migrate: &Migrate,
-) -> Result<(), anyhow::Error> {
+async fn do_migrate(cli: &mut Connection, migrate: &Migrate) -> Result<(), anyhow::Error> {
     let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet).await?;
     if migrate.dev_mode {
         // TODO(tailhook) figure out progressbar in non-quiet mode
