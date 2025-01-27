@@ -1,0 +1,15 @@
+[instance]
+server-version = "nightly"
+
+[project]
+schema-dir = "./database_schema"
+
+[hooks]
+project.init.before = "true"
+project.init.after = "true"
+branch.switch.before = "true"
+branch.switch.after = "true"
+branch.wipe.before = "true"
+branch.wipe.after = "true"
+migration.apply.before = "true"
+migration.apply.after = "true"
