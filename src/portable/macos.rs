@@ -1,5 +1,4 @@
 use std::fs;
-use std::os::unix::fs::FileTypeExt;
 use std::path::PathBuf;
 use std::thread;
 use std::time;
@@ -296,6 +295,7 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     // issues in upgrades
     #[cfg(unix)]
     for entry in fs::read_dir(runstate_dir(name)?)? {
+        use std::os::unix::fs::FileTypeExt;
         let entry = entry?;
         let path = entry.path();
 
