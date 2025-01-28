@@ -97,7 +97,7 @@ impl Wsl {
         pro.no_proxy();
         pro
     }
-    pub fn sh(&self, current_dir: &Path) -> process::Native {
+    pub fn sh(&self, _current_dir: &Path) -> process::Native {
         let mut pro = process::Native::new("sh", "sh", "wsl");
         pro.arg("--user").arg("edgedb");
         pro.arg("--distribution").arg(&self.distribution);
@@ -108,7 +108,7 @@ impl Wsl {
             pair.push(log_env);
             pro.arg(pair);
         }
-        pro.arg("--cd").arg(current_dir);
+        // TODO: set current dir
         pro.arg("/bin/sh");
         pro
     }

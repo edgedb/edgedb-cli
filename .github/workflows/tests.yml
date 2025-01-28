@@ -142,6 +142,8 @@ jobs:
 
       - run: |
           cargo test --workspace --test=${{ matrix.test }} --features portable_tests
+        env:
+          RUST_TEST_THREADS: '1'
 
   portable-tests-windows:
     needs: musl-test
