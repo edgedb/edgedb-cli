@@ -73,7 +73,7 @@ pub async fn edit_no_check(
     _common: &Options,
     options: &MigrationEdit,
 ) -> Result<(), anyhow::Error> {
-    let ctx = Context::from_project_or_config(&options.cfg, false).await?;
+    let ctx = Context::for_migration_config(&options.cfg, false).await?;
     // TODO(tailhook) do we have to make the full check of whether there are no
     // gaps and parent revisions are okay?
     let (_n, path) = read_names(&ctx)
@@ -139,7 +139,7 @@ async fn _edit(
     _common: &Options,
     options: &MigrationEdit,
 ) -> anyhow::Result<()> {
-    let ctx = Context::from_project_or_config(&options.cfg, false).await?;
+    let ctx = Context::for_migration_config(&options.cfg, false).await?;
     // TODO(tailhook) do we have to make the full check of whether there are no
     // gaps and parent revisions are okay?
     let (n, path) = cli

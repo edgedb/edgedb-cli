@@ -1,8 +1,9 @@
-use crate::branch;
 use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::connect::Connector;
+use crate::print::Highlight;
+use crate::{branch, hooks, print};
 
 pub async fn run(
     options: &Command,
@@ -60,14 +61,23 @@ pub async fn run(
         }
     };
 
-    eprintln!(
+    if let Some(project) = &context.get_project().await? {
+        hooks::on_action("branch.switch.before", project)?;
+    }
+
+    print::msg!(
         "Switching from '{}' to '{}'",
-        current_branch, options.target_branch
+        current_branch.emphasize(),
+        options.target_branch.emphasize()
     );
 
     context
         .update_current_branch(&options.target_branch)
         .await?;
+
+    if let Some(project) = &context.get_project().await? {
+        hooks::on_action("branch.switch.after", project)?;
+    }
 
     Ok(branch::CommandResult {
         new_branch: Some(options.target_branch.clone()),

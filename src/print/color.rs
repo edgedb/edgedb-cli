@@ -8,7 +8,7 @@ static THEME: once_cell::sync::Lazy<Theme> = once_cell::sync::Lazy::new(|| {
         Theme {
             fade: Some(Style {
                 color: Color::Grey37,
-                bold: true,
+                bold: false,
                 underline: false,
             }),
             err_marker: Some(Style {

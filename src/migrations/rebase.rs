@@ -263,6 +263,7 @@ pub async fn do_rebase(
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
         quiet: false,
+        project: None,
     };
 
     // write all the migrations to disk.

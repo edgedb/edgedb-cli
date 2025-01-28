@@ -30,6 +30,7 @@ mod error_display;
 mod format;
 mod highlight;
 mod hint;
+mod hooks;
 mod interactive;
 mod interrupt;
 mod log_levels;

@@ -13,7 +13,7 @@ pub async fn upgrade_format(
     _opts: &Options,
     params: &MigrationUpgradeFormat,
 ) -> anyhow::Result<()> {
-    let ctx = Context::from_project_or_config(&params.cfg, false).await?;
+    let ctx = Context::for_migration_config(&params.cfg, false).await?;
 
     _upgrade_format(&ctx).await
 }
@@ -77,6 +77,7 @@ mod test {
         let ctx = Context {
             schema_dir,
             quiet: false,
+            project: None,
         };
 
         _upgrade_format(&ctx).await.unwrap();
