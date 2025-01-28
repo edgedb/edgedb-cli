@@ -572,11 +572,6 @@ pub fn bootstrap(
         .arg(&ensure_runstate_dir(&info.name)?);
     self_signed_arg(&mut cmd, info.get_version()?);
     cmd.arg("--bootstrap-command").arg(script);
-    if info.get_version()?.specific().major >= 5 {
-        cmd.arg("--default-branch").arg(database);
-    } else {
-        cmd.arg("--default-database").arg(database);
-    }
     cmd.run()?;
 
     let cert_path = tmp_data.join("edbtlscert.pem");

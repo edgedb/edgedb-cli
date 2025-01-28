@@ -251,7 +251,7 @@ fn hooks() {
         .arg("instance")
         .arg("create")
         .arg("inst2")
-        .arg("master")
+        // .arg("default-branch-name") defaults to main
         .arg("--non-interactive")
         .assert()
         .context("instance-create", "")
@@ -293,7 +293,7 @@ fn hooks() {
         .current_dir("tests/proj/project3")
         .arg("branch")
         .arg("merge")
-        .arg("master")
+        .arg("main")
         .assert()
         .context("branch-merge", "")
         .success()
