@@ -1,4 +1,4 @@
-use crate::portable::project;
+use crate::portable::{project, windows};
 use crate::print::{self, Highlight};
 
 pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Result<()> {
@@ -9,11 +9,19 @@ pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Re
     print::msg!("{}", format!("hook {action}: {hook}").fade());
 
     // run
-    let status = std::process::Command::new("/bin/sh")
-        .arg("-c")
-        .arg(hook)
-        .current_dir(&project.location.root)
-        .status()?;
+    let status = if !cfg!(windows) {
+        std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg(hook)
+            .current_dir(&project.location.root)
+            .status()?
+    } else {
+        let wsl = windows::try_get_wsl()?;
+        wsl.sh(&project.location.root)
+            .arg("-c")
+            .arg(hook)
+            .status()?
+    };
 
     // abort on error
     if !status.success() {
@@ -21,7 +29,6 @@ pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Re
             "Hook {action} exited with status {status}."
         ));
     }
-
     Ok(())
 }
 
