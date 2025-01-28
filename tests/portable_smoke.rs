@@ -16,14 +16,6 @@ fn install() {
         .success()
         .stdout(predicates::str::contains(EXPECTED_VERSION));
 
-    Command::new("edgedb")
-        .arg("instance")
-        .arg("create")
-        .arg("inst1")
-        .assert()
-        .context("create-1", "created `inst1`")
-        .success();
-
     // TODO(tailhook) check output somehow
     Command::new("edgedb")
         .arg("server")
@@ -102,6 +94,15 @@ fn install() {
 
     Command::new("edgedb")
         .arg("instance")
+        .arg("create")
+        .arg("inst1")
+        .arg("my-branch")
+        .assert()
+        .context("create-1", "created `inst1`")
+        .success();
+
+    Command::new("edgedb")
+        .arg("instance")
         .arg("logs")
         .arg("--instance=inst1")
         .assert()
@@ -113,10 +114,20 @@ fn install() {
         .arg("inst1")
         .arg("query")
         .arg("SELECT 1")
-        .env("RUST_LOG", "debug")
         .assert()
         .context("query-1", "query `inst1` first time")
         .success();
+
+    Command::new("edgedb")
+        .arg("--instance")
+        .arg("inst1")
+        .arg("query")
+        .arg("--")
+        .arg("select sys::get_current_branch();")
+        .assert()
+        .context("query-2", "query `inst1` to get current branch")
+        .success()
+        .stdout(predicates::str::contains("\"my-branch\""));
 
     Command::new("edgedb")
         .arg("instance")
