@@ -189,11 +189,7 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         msg!("{}", "    git add dbschema".emphasized());
         msg!();
         msg!("You can now wipe your instances and apply the new schema:");
-        msg!(
-            "    {} {}",
-            BRANDING_CLI_CMD,
-            "database wipe".emphasized()
-        );
+        msg!("    {} {}", BRANDING_CLI_CMD, "database wipe".emphasized());
         msg!("    {} {}", BRANDING_CLI_CMD, "migrate".emphasized());
     }
     Ok(())

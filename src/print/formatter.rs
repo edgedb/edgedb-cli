@@ -221,8 +221,7 @@ where
         self.delimit()?;
         if let Some(type_name) = type_name {
             self.block(
-                self.styler
-                    .apply(Style::Array, &format!("<{type_name}>[")),
+                self.styler.apply(Style::Array, &format!("<{type_name}>[")),
                 f,
                 self.styler.apply(Style::Array, "]"),
             )?;
@@ -240,10 +239,7 @@ where
         iter: impl IntoIterator<Item = &'x f32> + Copy,
     ) -> Result<Self::Error> {
         self.delimit()?;
-        let flag = self.open_block(
-            self.styler
-                .apply(Style::Array, "<ext::pgvector::vector>["),
-        )?;
+        let flag = self.open_block(self.styler.apply(Style::Array, "<ext::pgvector::vector>["))?;
         let close = self.styler.apply(Style::Array, "]");
         if self.flow {
             let mut printed = 0;

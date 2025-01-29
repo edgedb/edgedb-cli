@@ -378,10 +378,7 @@ async fn execute_query(
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
-                    eprintln!(
-                        "{}",
-                        format!("First row: {:?}", start.elapsed()).muted()
-                    );
+                    eprintln!("{}", format!("First row: {:?}", start.elapsed()).muted());
                 }
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
@@ -433,10 +430,7 @@ async fn execute_query(
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
-                    eprintln!(
-                        "{}",
-                        format!("First row: {:?}", start.elapsed()).muted()
-                    );
+                    eprintln!("{}", format!("First row: {:?}", start.elapsed()).muted());
                 }
                 index += 1;
                 let text = match row {
@@ -472,10 +466,7 @@ async fn execute_query(
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
-                    eprintln!(
-                        "{}",
-                        format!("First row: {:?}", start.elapsed()).muted()
-                    );
+                    eprintln!("{}", format!("First row: {:?}", start.elapsed()).muted());
                 }
                 let mut text = match row {
                     Value::Str(s) => s,

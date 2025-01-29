@@ -174,9 +174,13 @@ impl State {
     fn print_banner(&self, version: &ver::Build) -> anyhow::Result<()> {
         msg!(
             "{} {} {}",
-            format!("{}\r{BRANDING}", ansi_escapes::EraseLine).muted().emphasized(),
+            format!("{}\r{BRANDING}", ansi_escapes::EraseLine)
+                .muted()
+                .emphasized(),
             version.to_string().muted(),
-            format_args!("(repl {})", env!("CARGO_PKG_VERSION")).to_string().muted()
+            format_args!("(repl {})", env!("CARGO_PKG_VERSION"))
+                .to_string()
+                .muted()
         );
         Ok(())
     }

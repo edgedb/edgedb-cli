@@ -338,7 +338,10 @@ pub fn upgrade_cloud(
 }
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
-    msg!("Upgrading to a minor version {}", pkg.version.to_string().emphasized());
+    msg!(
+        "Upgrading to a minor version {}",
+        pkg.version.to_string().emphasized()
+    );
     let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
     inst.installation = Some(install);
 
@@ -364,7 +367,10 @@ pub fn upgrade_incompatible(
     pkg: PackageInfo,
     non_interactive: bool,
 ) -> anyhow::Result<()> {
-    msg!("Upgrading to a major version {}", pkg.version.to_string().emphasized());
+    msg!(
+        "Upgrading to a major version {}",
+        pkg.version.to_string().emphasized()
+    );
 
     let old_version = inst.get_version()?.clone();
 
