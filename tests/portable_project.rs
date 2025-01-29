@@ -239,6 +239,7 @@ fn project_link_and_init() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn hooks() {
     Command::new("edgedb")
         .arg("--version")
