@@ -1237,6 +1237,7 @@ dependencies = [
  "term 1.0.1",
  "termcolor",
  "termimad",
+ "terminal-light",
  "terminal_size",
  "test-case",
  "test-utils",
@@ -4047,6 +4048,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-light"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9474484d1a0c031cd7d065c6f027a376859c9fedb32c94df3d7a797218bbb7"
+dependencies = [
+ "coolor",
+ "crossterm",
+ "thiserror 1.0.69",
+ "xterm-query",
+]
+
+[[package]]
 name = "terminal_size"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5142,6 +5155,16 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "rustix",
+]
+
+[[package]]
+name = "xterm-query"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "775333f1c03ec9f81f7f295de5a8dac7350b91f7e03e2dd730593ba4ec3515d1"
+dependencies = [
+ "nix 0.29.0",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

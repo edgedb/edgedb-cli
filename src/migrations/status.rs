@@ -1,4 +1,3 @@
-use colorful::Colorful;
 use indexmap::IndexMap;
 
 use crate::async_try;
@@ -10,7 +9,7 @@ use crate::migrations::create::{execute_start_migration, CurrentMigration};
 use crate::migrations::edb::execute_if_connected;
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::options::ShowStatus;
-use crate::print;
+use crate::print::{self, Highlight};
 
 async fn ensure_diff_is_empty(cli: &mut Connection, ctx: &Context) -> Result<(), anyhow::Error> {
     let data = cli
@@ -53,15 +52,11 @@ pub async fn status(
     match up_to_date_check(cli, &ctx, &migrations).await? {
         Some(_) if status.quiet => Ok(()),
         Some(migration) => {
-            if print::use_color() {
-                eprintln!(
-                    "{} Last migration: {}.",
-                    "Database is up to date.".bold().light_green(),
-                    migration.bold().white(),
-                );
-            } else {
-                eprintln!("Database is up to date. Last migration: {migration}.",);
-            }
+            print::msg!(
+                "{} Last migration: {}.",
+                "Database is up to date.".emphasized().success(),
+                migration.emphasized(),
+            );
             Ok(())
         }
         None => Err(ExitCode::new(3).into()),

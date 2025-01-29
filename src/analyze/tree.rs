@@ -56,7 +56,7 @@ pub fn print_debug_plan(explain: &Analysis) {
             let mut header = Vec::with_capacity(9);
             header.push(Box::new("") as Box<_>);
             cost_header(&mut header, &explain.arguments);
-            header.push(Box::new("Plan Info".emphasize()) as Box<_>);
+            header.push(Box::new("Plan Info".emphasized()) as Box<_>);
 
             let marker = NarrowMarker::new(node);
 
@@ -84,11 +84,11 @@ pub fn print_shape(explain: &Analysis) {
         let mut header = Vec::with_capacity(8);
         header.push(Box::new("") as Box<_>);
         cost_header(&mut header, &explain.arguments);
-        header.push(Box::new("Relations".emphasize()) as Box<_>);
+        header.push(Box::new("Relations".emphasized()) as Box<_>);
 
         let mut root = Vec::with_capacity(3);
         let context = explain.context(&shape.contexts);
-        root.push(Box::new(format!("{context}{}", "root".fade())) as Box<_>);
+        root.push(Box::new(format!("{context}{}", "root".muted())) as Box<_>);
         cost_columns(&mut root, &shape.cost, &explain.arguments);
         root.push(Box::new(table::WordList(Relations(&shape.relations))));
 
@@ -143,7 +143,7 @@ pub fn print_expanded_tree(explain: &Analysis) {
         let mut header = Vec::with_capacity(9);
         header.push(Box::new("") as Box<_>);
         cost_header(&mut header, &explain.arguments);
-        header.push(Box::new("Plan Info".emphasize()) as Box<_>);
+        header.push(Box::new("Plan Info".emphasized()) as Box<_>);
 
         let marker = NarrowMarker::new(node);
         let mut rows = vec![header];
@@ -440,7 +440,7 @@ impl table::Contents for Border {
     }
     fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         for _ in 0..height {
-            writeln!(f, "{}", "│".emphasize())?;
+            writeln!(f, "{}", "│".emphasized())?;
         }
         Ok(())
     }
@@ -449,15 +449,15 @@ impl table::Contents for Border {
 fn cost_header(header: &mut Vec<Box<dyn table::Contents + '_>>, args: &Arguments) {
     header.push(Box::new(Border) as Box<_>);
     if args.execute {
-        header.push(Box::new(table::Right("Time".emphasize())) as Box<_>);
-        header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
-        header.push(Box::new(table::Right("Loops".emphasize())) as Box<_>);
-        header.push(Box::new(table::Right("Rows".emphasize())) as Box<_>);
-        header.push(Box::new(table::Right("Width".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Time".emphasized())) as Box<_>);
+        header.push(Box::new(table::Right("Cost".emphasized())) as Box<_>);
+        header.push(Box::new(table::Right("Loops".emphasized())) as Box<_>);
+        header.push(Box::new(table::Right("Rows".emphasized())) as Box<_>);
+        header.push(Box::new(table::Right("Width".emphasized())) as Box<_>);
     } else {
-        header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
-        header.push(Box::new(table::Right("Plan Rows".emphasize())) as Box<_>);
-        header.push(Box::new(table::Right("Width".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Cost".emphasized())) as Box<_>);
+        header.push(Box::new(table::Right("Plan Rows".emphasized())) as Box<_>);
+        header.push(Box::new(table::Right("Width".emphasized())) as Box<_>);
     }
     header.push(Box::new(Border) as Box<_>);
 }
@@ -553,6 +553,6 @@ impl fmt::Display for NodeTitle<'_> {
 
 impl<T: fmt::Display> fmt::Display for Property<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}={}", self.0.fade(), self.1)
+        write!(f, "{}={}", self.0.muted(), self.1)
     }
 }

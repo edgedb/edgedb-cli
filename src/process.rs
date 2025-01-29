@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::process::{exit, ExitStatus, Output, Stdio};
 
 use anyhow::Context;
-use colorful::{Color, Colorful};
 use once_cell::sync::Lazy;
 use tokio::io::AsyncWriteExt;
 use tokio::io::{self, AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader};
@@ -17,6 +16,7 @@ use tokio::process::Command;
 
 use crate::interrupt;
 use crate::platform::tmp_file_path;
+use crate::print::Highlight;
 
 #[cfg(unix)]
 static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
@@ -818,19 +818,18 @@ async fn stdout_loop(
             let mut lines = buf.lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 let message = if cfg!(windows) {
-                    format!("[{marker}] {line}\r\n")
-                        .color(Color::Grey37)
-                        .to_string()
+                    format!("[{marker}] {line}\r\n").muted()
                 } else {
-                    format!("[{marker}] {line}\n")
-                        .color(Color::Grey37)
-                        .to_string()
+                    format!("[{marker}] {line}\n").muted()
                 };
 
                 if quiet {
                     log::debug!("{}", message);
                 } else {
-                    io::stderr().write_all(message.as_bytes()).await.ok();
+                    io::stderr()
+                        .write_all(message.to_string().as_bytes())
+                        .await
+                        .ok();
                 }
             }
         }

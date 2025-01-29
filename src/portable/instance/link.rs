@@ -1,7 +1,6 @@
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
-use colorful::Colorful;
 use ring::digest;
 
 use rustls::client::danger::HandshakeSignatureValid;
@@ -25,7 +24,7 @@ use crate::options::{ConnectionOptions, Options};
 use crate::portable::local::is_valid_local_instance_name;
 use crate::portable::options::InstanceName;
 use crate::portable::ver::Build;
-use crate::print;
+use crate::print::{self, Highlight};
 use crate::question;
 use crate::tty_password;
 
@@ -152,14 +151,12 @@ pub fn run(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
 
     credentials::write(&cred_path, &creds)?;
     if !cmd.quiet {
-        let mut msg = "Successfully linked to remote instance.".to_string();
-        if print::use_color() {
-            msg = format!("{}", msg.bold().light_green());
-        }
         eprintln!(
             "{} To connect run:\
             \n  {BRANDING_CLI_CMD} -I {}",
-            msg,
+            "Successfully linked to remote instance."
+                .emphasized()
+                .success(),
             instance_name.escape_default(),
         );
     }

@@ -1,22 +1,12 @@
 use crate::print::stream::Output;
 use crate::print::Printer;
 
-use colorful::core::color_string::CString;
-
 use crate::print::buffer::{Exception, Result};
 
 use crate::print::style::Style;
 use crate::repl::VectorLimit;
 
-pub(in crate::print) trait ColorfulExt {
-    fn clear(&self) -> CString;
-}
-
-impl<'a> ColorfulExt for &'a str {
-    fn clear(&self) -> CString {
-        CString::new(*self)
-    }
-}
+use super::color::Highlight;
 
 pub trait Formatter {
     type Error;
@@ -92,7 +82,7 @@ where
     }
     fn nil(&mut self) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(self.styler.apply(Style::SetLiteral, "{}"))
+        self.write(self.styler.apply(Style::Set, "{}"))
     }
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error> {
         self.delimit()?;
@@ -116,9 +106,9 @@ where
     {
         self.delimit()?;
         self.block(
-            self.styler.apply(Style::SetLiteral, "{"),
+            self.styler.apply(Style::Set, "{"),
             f,
-            self.styler.apply(Style::SetLiteral, "}"),
+            self.styler.apply(Style::Set, "}"),
         )?;
         Ok(())
     }
@@ -137,24 +127,24 @@ where
             Some(type_name) => {
                 if type_name == "std::FreeObject" {
                     self.block(
-                        self.styler.apply(Style::ObjectLiteral, "{"),
+                        self.styler.apply(Style::Object, "{"),
                         f,
-                        self.styler.apply(Style::ObjectLiteral, "}"),
+                        self.styler.apply(Style::Object, "}"),
                     )?;
                 } else {
                     self.block(
                         self.styler
-                            .apply(Style::ObjectLiteral, &(String::from(type_name) + " {")),
+                            .apply(Style::Object, &(String::from(type_name) + " {")),
                         f,
-                        self.styler.apply(Style::ObjectLiteral, "}"),
+                        self.styler.apply(Style::Object, "}"),
                     )?;
                 }
             }
             _ => {
                 self.block(
-                    self.styler.apply(Style::ObjectLiteral, "Object {"),
+                    self.styler.apply(Style::Object, "Object {"),
                     f,
-                    self.styler.apply(Style::ObjectLiteral, "}"),
+                    self.styler.apply(Style::Object, "}"),
                 )?;
             }
         }
@@ -166,18 +156,18 @@ where
     {
         self.delimit()?;
         self.block(
-            self.styler.apply(Style::ObjectLiteral, "{"),
+            self.styler.apply(Style::Object, "{"),
             f,
-            self.styler.apply(Style::ObjectLiteral, "}"),
+            self.styler.apply(Style::Object, "}"),
         )?;
         Ok(())
     }
     fn object_field(&mut self, f: &str, linkprop: bool) -> Result<Self::Error> {
         self.delimit()?;
         if linkprop {
-            self.write(self.styler.apply(Style::ObjectLinkProperty, f))?;
+            self.write(self.styler.apply(Style::LinkProperty, f))?;
         } else {
-            self.write(self.styler.apply(Style::ObjectPointer, f))?;
+            self.write(self.styler.apply(Style::Pointer, f))?;
         }
         self.field()?;
         Ok(())
@@ -188,9 +178,9 @@ where
     {
         self.delimit()?;
         self.block(
-            self.styler.apply(Style::TupleLiteral, "("),
+            self.styler.apply(Style::Tuple, "("),
             f,
-            self.styler.apply(Style::TupleLiteral, ")"),
+            self.styler.apply(Style::Tuple, ")"),
         )?;
         Ok(())
     }
@@ -200,9 +190,9 @@ where
     {
         self.delimit()?;
         self.block(
-            self.styler.apply(Style::TupleLiteral, "("),
+            self.styler.apply(Style::Tuple, "("),
             f,
-            self.styler.apply(Style::TupleLiteral, ")"),
+            self.styler.apply(Style::Tuple, ")"),
         )?;
         Ok(())
     }
@@ -212,16 +202,16 @@ where
     {
         self.delimit()?;
         self.block(
-            self.styler.apply(Style::TupleLiteral, &format!("{name}(")),
+            self.styler.apply(Style::Tuple, &format!("{name}(")),
             f,
-            self.styler.apply(Style::TupleLiteral, ")"),
+            self.styler.apply(Style::Tuple, ")"),
         )?;
         Ok(())
     }
     fn tuple_field(&mut self, f: &str) -> Result<Self::Error> {
         self.delimit()?;
         self.write(self.styler.apply(Style::TupleField, f))?;
-        self.write(self.styler.apply(Style::TupleLiteral, " := "))?;
+        self.write(self.styler.apply(Style::Tuple, " := "))?;
         Ok(())
     }
     fn array<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
@@ -231,16 +221,15 @@ where
         self.delimit()?;
         if let Some(type_name) = type_name {
             self.block(
-                self.styler
-                    .apply(Style::ArrayLiteral, &format!("<{type_name}>[")),
+                self.styler.apply(Style::Array, &format!("<{type_name}>[")),
                 f,
-                self.styler.apply(Style::ArrayLiteral, "]"),
+                self.styler.apply(Style::Array, "]"),
             )?;
         } else {
             self.block(
-                self.styler.apply(Style::ArrayLiteral, "["),
+                self.styler.apply(Style::Array, "["),
                 f,
-                self.styler.apply(Style::ArrayLiteral, "]"),
+                self.styler.apply(Style::Array, "]"),
             )?;
         }
         Ok(())
@@ -250,11 +239,8 @@ where
         iter: impl IntoIterator<Item = &'x f32> + Copy,
     ) -> Result<Self::Error> {
         self.delimit()?;
-        let flag = self.open_block(
-            self.styler
-                .apply(Style::ArrayLiteral, "<ext::pgvector::vector>["),
-        )?;
-        let close = self.styler.apply(Style::ArrayLiteral, "]");
+        let flag = self.open_block(self.styler.apply(Style::Array, "<ext::pgvector::vector>["))?;
+        let close = self.styler.apply(Style::Array, "]");
         if self.flow {
             let mut printed = 0;
             let mut savepoint = (self.buffer.len(), self.column);
@@ -280,7 +266,7 @@ where
                         self.column = savepoint.1;
                         let tmp_res = self
                             .delimit()
-                            .and_then(|()| self.write("...".clear()))
+                            .and_then(|()| self.write("...".unstyled()))
                             .and_then(|()| self.close_block(&close, flag));
                         match tmp_res {
                             Ok(()) => return Ok(()),
@@ -296,7 +282,7 @@ where
                     }
                     if iter.next().is_some() {
                         self.delimit()?;
-                        self.write("...\n".clear())?;
+                        self.write("...\n".unstyled())?;
                     }
                     self.close_block(&close, flag)?;
                 }
@@ -310,7 +296,7 @@ where
             }
             if iter.next().is_some() {
                 self.delimit()?;
-                self.write("...".clear())?;
+                self.write("...".unstyled())?;
             }
             self.close_block(&close, flag)?;
         }

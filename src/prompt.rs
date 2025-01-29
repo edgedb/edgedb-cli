@@ -29,8 +29,6 @@ use crate::repl::{FAILURE_MARKER, TX_MARKER};
 use edgeql_parser::preparser::full_statement;
 use gel_protocol::value::Value;
 
-use colorful::Colorful;
-
 pub mod variable;
 
 pub enum Control {
@@ -94,14 +92,14 @@ impl Highlighter for EdgeqlHelper {
                 format!(
                     "{}{}> ",
                     &content[..content.len() - TX_MARKER.len()],
-                    TX_MARKER.green()
+                    TX_MARKER.success()
                 )
                 .into()
             } else if content.ends_with(FAILURE_MARKER) {
                 return format!(
                     "{}{}> ",
                     &content[..content.len() - FAILURE_MARKER.len()],
-                    FAILURE_MARKER.red()
+                    FAILURE_MARKER.danger()
                 )
                 .into();
             } else {
@@ -142,7 +140,7 @@ impl Highlighter for EdgeqlHelper {
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        hint.rgb(0x56, 0x56, 0x56).to_string().into()
+        hint.muted().to_string().into()
     }
     fn highlight_candidate<'h>(
         &self,
@@ -155,7 +153,7 @@ impl Highlighter for EdgeqlHelper {
             let mut buf = String::with_capacity(item.len() + 8);
             let (value, descr) = item.split_at(pos);
             buf.push_str(value);
-            write!(buf, "{}", descr.light_gray()).unwrap();
+            write!(buf, "{}", descr.muted()).unwrap();
             buf.into()
         } else {
             item.into()
@@ -246,7 +244,7 @@ pub fn create_editor(config: &ConfigBuilder) -> anyhow::Result<Editor<EdgeqlHelp
         })
         .ok();
     editor.set_helper(Some(EdgeqlHelper {
-        styler: Styler::dark_256(),
+        styler: Styler::new(),
     }));
     Ok(editor)
 }
@@ -334,7 +332,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                     &var_type.type_name(),
                     &name,
                     if optional {
-                        " (Ctrl+D for empty set `{}`)".fade().to_string()
+                        " (Ctrl+D for empty set `{}`)".muted().to_string()
                     } else {
                         String::new()
                     },

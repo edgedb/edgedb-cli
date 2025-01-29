@@ -1120,14 +1120,14 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     if let Some(dir) = dir_option {
         msg!(
             "To connect to {}, navigate to {} and run `{}`",
-            name.emphasize(),
+            name.emphasized(),
             dir.display(),
             BRANDING_CLI_CMD
         );
     } else {
         msg!(
             "To connect to {}, run `{}`",
-            name.emphasize(),
+            name.emphasized(),
             BRANDING_CLI_CMD
         );
     }

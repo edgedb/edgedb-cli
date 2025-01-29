@@ -84,7 +84,10 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
             .unwrap()
             .insert(meta.version.clone())
         {
-            msg!("Version {} is already downloaded", meta.version.emphasize());
+            msg!(
+                "Version {} is already downloaded",
+                meta.version.to_string().emphasized()
+            );
         }
         return Ok(meta);
     }
@@ -104,7 +107,10 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     fs::rename(&tmp_target, &target_dir)
         .with_context(|| format!("cannot rename {tmp_target:?} -> {target_dir:?}"))?;
     unlink_cache(&cache_path);
-    msg!("Successfully installed {}", pkg_info.version.emphasize());
+    msg!(
+        "Successfully installed {}",
+        pkg_info.version.to_string().emphasized()
+    );
     INSTALLED_VERSIONS
         .lock()
         .unwrap()

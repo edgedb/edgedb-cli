@@ -68,13 +68,16 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
     }
 
     if !all && !options.unused {
-        msg!("Uninstalled {} versions.", uninstalled.emphasize());
+        msg!(
+            "Uninstalled {} versions.",
+            uninstalled.to_string().emphasized()
+        );
         print::error!("some instances are in use. See messages above.");
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
     } else if uninstalled > 0 {
         msg!(
             "Successfully uninstalled {} versions.",
-            uninstalled.emphasize()
+            uninstalled.to_string().emphasized()
         );
     } else {
         print::success!("Nothing to uninstall.")

@@ -398,7 +398,7 @@ pub fn print_version_hint(version: &Specific, ver_query: &Query) {
         if !filter.matches_exact(version) {
             msg!(
                 "Using {} (matches `{}`), use `{}` for exact version",
-                version.emphasize(),
+                version.to_string().emphasized(),
                 filter,
                 filter.clone().with_exact()
             );

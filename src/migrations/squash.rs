@@ -122,7 +122,7 @@ async fn create_revision(
 }
 
 async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
-    msg!("Current database revision: {}", db_rev.emphasize());
+    msg!("Current database revision: {}", db_rev.emphasized());
     msg!(
         "While squashing migrations is non-destructive, it may lead to manual work \
            if done incorrectly."
@@ -138,7 +138,7 @@ async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
     msg!(
         "       {} {}",
         BRANDING_CLI_CMD,
-        " -I <name> migration log --from-db --newest-first --limit 1".command_hint()
+        " -I <name> migration log --from-db --newest-first --limit 1".emphasized()
     );
     msg!(
         "  3. Merge version control branches that contain schema changes \
@@ -175,10 +175,10 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
             "Remember to commit the `dbschema` directory including deleted \
                files and `fixups` subdirectory. Recommended command:"
         );
-        msg!("{}", "    git add dbschema".command_hint());
+        msg!("{}", "    git add dbschema".emphasized());
         msg!();
         msg!("The normal migration process will update your migration history:");
-        msg!("    {} {}", BRANDING_CLI_CMD, "migrate".command_hint());
+        msg!("    {} {}", BRANDING_CLI_CMD, "migrate".emphasized());
     } else {
         msg!("Squash is complete.");
         msg!();
@@ -186,15 +186,11 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
             "Remember to commit the `dbschema` directory including deleted \
                files. Recommended command:"
         );
-        msg!("{}", "    git add dbschema".command_hint());
+        msg!("{}", "    git add dbschema".emphasized());
         msg!();
         msg!("You can now wipe your instances and apply the new schema:");
-        msg!(
-            "    {} {}",
-            BRANDING_CLI_CMD,
-            "database wipe".command_hint()
-        );
-        msg!("    {} {}", BRANDING_CLI_CMD, "migrate".command_hint());
+        msg!("    {} {}", BRANDING_CLI_CMD, "database wipe".emphasized());
+        msg!("    {} {}", BRANDING_CLI_CMD, "migrate".emphasized());
     }
     Ok(())
 }

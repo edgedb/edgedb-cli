@@ -218,7 +218,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
                 msg!(
                     "    {} {}",
                     BRANDING_CLI_CMD,
-                    " migration upgrade-check --watch".command_hint()
+                    " migration upgrade-check --watch".emphasized()
                 );
                 return Err(ExitCode::new(3))?;
             }
@@ -298,7 +298,7 @@ fn print_apply_migration_error() {
     msg!(
         "    {} {}",
         BRANDING_CLI_CMD,
-        " migration create --squash".command_hint()
+        " migration create --squash".emphasized()
     );
 }
 

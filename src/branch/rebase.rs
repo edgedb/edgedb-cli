@@ -1,5 +1,3 @@
-use colorful::Colorful;
-
 use crate::branch::connections::get_connection_to_modify;
 use crate::branch::context::Context;
 use crate::commands::Options;
@@ -8,6 +6,7 @@ use crate::migrations::rebase::{
     do_rebase, get_diverging_migrations, write_rebased_migration_files,
 };
 use crate::portable::project;
+use crate::print::Highlight;
 use crate::{migrations, print};
 use uuid::Uuid;
 
@@ -146,7 +145,7 @@ async fn rename_temp_to_source(
 }
 
 async fn clone_target_branch(branch: &str, connection: &mut Connection) -> anyhow::Result<String> {
-    eprintln!("Cloning target branch '{}' for rebase...", branch.green());
+    eprintln!("Cloning target branch '{}' for rebase...", branch.success());
 
     let temp_branch_name = Uuid::new_v4().to_string();
 
