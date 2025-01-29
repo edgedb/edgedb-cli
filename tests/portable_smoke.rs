@@ -24,6 +24,15 @@ fn install() {
         .context("list-versions", "list versions of the server")
         .success();
 
+    Command::new("edgedb")
+        .arg("instance")
+        .arg("create")
+        .arg("inst1")
+        .arg("my-branch")
+        .assert()
+        .context("create-1", "created `inst1`")
+        .success();
+
     // TODO(tailhook) check output somehow
     Command::new("edgedb")
         .arg("server")
@@ -90,15 +99,6 @@ fn install() {
         .arg("--installed-only")
         .assert()
         .context("list-versions-json-installed", "")
-        .success();
-
-    Command::new("edgedb")
-        .arg("instance")
-        .arg("create")
-        .arg("inst1")
-        .arg("my-branch")
-        .assert()
-        .context("create-1", "created `inst1`")
         .success();
 
     Command::new("edgedb")
