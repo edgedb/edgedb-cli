@@ -450,7 +450,7 @@ pub async fn apply_migrations(
     single_transaction: bool,
 ) -> anyhow::Result<()> {
     if let Some(project) = &ctx.project {
-        hooks::on_action("migration.apply.before", project)?;
+        hooks::on_action("migration.apply.before", project).await?;
     }
 
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
@@ -480,7 +480,7 @@ pub async fn apply_migrations(
         }
     }?;
     if let Some(project) = &ctx.project {
-        hooks::on_action("migration.apply.after", project)?;
+        hooks::on_action("migration.apply.after", project).await?;
     }
     Ok(())
 }

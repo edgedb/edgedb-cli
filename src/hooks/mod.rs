@@ -1,7 +1,15 @@
 use crate::portable::{project, windows};
 use crate::print::{self, Highlight};
 
-pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Result<()> {
+#[tokio::main(flavor = "current_thread")]
+pub async fn on_action_sync(
+    action: &'static str,
+    project: &project::Context,
+) -> anyhow::Result<()> {
+    on_action(action, project).await
+}
+
+pub async fn on_action(action: &'static str, project: &project::Context) -> anyhow::Result<()> {
     let Some(hook) = get_hook(action, &project.manifest) else {
         return Ok(());
     };
@@ -20,7 +28,8 @@ pub fn on_action(action: &'static str, project: &project::Context) -> anyhow::Re
         wsl.sh(&project.location.root)
             .arg("-c")
             .arg(hook)
-            .status()?
+            .run_for_status()
+            .await?
     };
 
     // abort on error

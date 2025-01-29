@@ -413,7 +413,7 @@ fn do_init(
     stash.database = handle.database.as_deref();
     stash.write(stash_dir)?;
 
-    hooks::on_action("project.init.after", project)?;
+    hooks::on_action_sync("project.init.after", project)?;
 
     if !options.no_migrations {
         migrate(&handle, false)?;
@@ -463,7 +463,7 @@ fn do_cloud_init(
     stash.database = handle.database.as_deref();
     stash.write(stash_dir)?;
 
-    hooks::on_action("project.init.after", project)?;
+    hooks::on_action_sync("project.init.after", project)?;
 
     if !options.no_migrations {
         migrate(&handle, false)?;
@@ -547,7 +547,7 @@ fn do_link(
     stash.database = inst.database.as_deref();
     stash.write(stash_dir)?;
 
-    hooks::on_action("project.init.after", project)?;
+    hooks::on_action_sync("project.init.after", project)?;
 
     if !options.no_migrations {
         migrate(inst, !options.non_interactive)?;

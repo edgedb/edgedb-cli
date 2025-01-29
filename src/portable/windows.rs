@@ -681,7 +681,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool) -> anyhow::Resul
         .arg("-I")
         .arg(instance);
     let instance = String::from(instance);
-    pro.stop_process(move || {
+    pro.set_stop_process_command(move || {
         let mut cmd = tokio::process::Command::new("wsl");
         cmd.arg("--user").arg("edgedb");
         cmd.arg("--distribution").arg(&wsl.distribution);

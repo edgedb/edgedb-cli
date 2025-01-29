@@ -53,7 +53,7 @@ pub struct Native {
     program: OsString,
     args: Vec<OsString>,
     envs: HashMap<OsString, Option<OsString>>,
-    stop_process: Option<Box<dyn Fn() -> Command>>,
+    stop_process: Option<Box<dyn Fn() -> Command + Send + Sync>>,
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
     proxy: bool,
@@ -355,6 +355,9 @@ impl Native {
     }
     pub fn status(&mut self) -> anyhow::Result<ExitStatus> {
         block_on(self._run(false, false)).map(|out| out.status)
+    }
+    pub async fn run_for_status(&mut self) -> anyhow::Result<ExitStatus> {
+        self._run(false, false).await.map(|x| x.status)
     }
 
     async fn _run(&mut self, capture_out: bool, capture_err: bool) -> anyhow::Result<Output> {
@@ -750,10 +753,10 @@ impl Native {
             }
         }
     }
-    pub fn stop_process<F>(&mut self, f: F) -> &mut Self
-    where
-        F: Fn() -> Command + 'static,
-    {
+    pub fn set_stop_process_command(
+        &mut self,
+        f: impl Fn() -> Command + Send + Sync + 'static,
+    ) -> &mut Self {
         self.stop_process = Some(Box::new(f));
         self
     }

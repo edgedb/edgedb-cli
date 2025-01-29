@@ -145,7 +145,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         current_branch: None,
     };
     print_logo(false, true);
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
     let handle = runtime.spawn(_main(options, state, cfg));
