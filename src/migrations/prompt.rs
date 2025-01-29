@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use anyhow::Context as _;
-use colorful::Colorful;
 use edgeql_parser::expr;
 use rustyline::completion::Completer;
 use rustyline::config::EditMode;
@@ -14,6 +13,7 @@ use rustyline::{Config, Editor, Helper};
 
 use crate::highlight;
 use crate::print::style::Styler;
+use crate::print::Highlight;
 use crate::prompt::{load_history, save_history};
 
 pub struct ExpressionHelper {
@@ -41,7 +41,7 @@ impl Highlighter for ExpressionHelper {
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        hint.light_gray().to_string().into()
+        hint.muted().to_string().into()
     }
 }
 
@@ -83,7 +83,7 @@ pub fn expression(
         })
         .ok();
     editor.set_helper(Some(ExpressionHelper {
-        styler: Styler::dark_256(),
+        styler: Styler::new(),
     }));
     let text = editor
         .readline_with_initial(prompt, (default, ""))

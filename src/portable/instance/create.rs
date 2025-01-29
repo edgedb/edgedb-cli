@@ -175,7 +175,7 @@ pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> 
         }
     }
 
-    msg!("Instance {} is up and running.", name.emphasize());
+    msg!("Instance {} is up and running.", name.clone().emphasized());
     msg!("To connect to the instance run:");
     msg!("  {BRANDING_CLI_CMD} -I {name}");
     Ok(())
@@ -310,7 +310,7 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
             msg!(
                 "{} Instance {} already exists.",
                 err_marker(),
-                name.emphasize()
+                name.emphasized()
             );
         } else {
             return Ok(inst_name);

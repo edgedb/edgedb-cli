@@ -61,7 +61,7 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
                 msg!(
                     "Upgrade appears to still be in progress \
                     with pid {}",
-                    up.pid.emphasize()
+                    up.pid.to_string().emphasized()
                 );
                 msg!("Run with `--ignore-pid-check` to override");
                 Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
@@ -76,7 +76,7 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
         eprintln!();
         msg!(
             "Currently stored data {} and overwritten by the backup.",
-            "will be lost".emphasize()
+            "will be lost".emphasized()
         );
         let q = question::Confirm::new_dangerous("Do you really want to revert?");
         if !q.ask()? {
@@ -116,8 +116,8 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
     control::do_restart(&inst)?;
     msg!(
         "Instance {} is successfully reverted to {}",
-        inst.name.emphasize(),
-        inst.get_version()?.emphasize()
+        inst.name.as_str().emphasized(),
+        inst.get_version()?.to_string().emphasized()
     );
 
     fs::remove_file(paths.data_dir.join("backup.json"))?;

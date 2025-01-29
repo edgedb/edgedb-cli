@@ -90,7 +90,7 @@ fn init_command_opts(options: &Options) -> Result<commands::Options, anyhow::Err
     Ok(commands::Options {
         command_line: true,
         styler: if std::io::stdout().is_terminal() {
-            Some(Styler::dark_256())
+            Some(Styler::new())
         } else {
             None
         },

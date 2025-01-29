@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use color_print::cformat;
-use colorful::Colorful;
 use const_format::concatcp;
 use gel_errors::{ClientNoCredentialsError, ResultExt};
 use gel_protocol::model;
@@ -30,7 +29,7 @@ use crate::portable;
 use crate::portable::local::{instance_data_dir, runstate_dir};
 use crate::portable::options::InstanceName;
 use crate::portable::project;
-use crate::print;
+use crate::print::{self, Highlight};
 use crate::repl::{InputLanguage, OutputFormat};
 use crate::tty_password;
 use crate::watch::options::WatchCommand;
@@ -498,12 +497,8 @@ fn parse_duration(value: &str) -> anyhow::Result<Duration> {
 }
 
 fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
-    let mut error = "warning:".to_string();
-    let mut instead = suggestion.to_string();
-    if print::use_color() {
-        error = format!("{}", error.bold().light_yellow());
-        instead = format!("{}", instead.green());
-    }
+    let error = "warning:".to_string().emphasized().warning();
+    let instead = suggestion.to_string().success();
     eprintln!(
         "\
         {error} The '{opt}' option is deprecated.\n\
@@ -512,7 +507,7 @@ fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
         \n\
     ",
         error = error,
-        opt = option_name.green(),
+        opt = option_name.success(),
         instead = instead
     );
 }
@@ -831,13 +826,10 @@ impl Options {
         let mut no_cli_update_check = args.no_cli_update_check;
         if args.no_version_check {
             no_cli_update_check = true;
-            let mut error = "warning:".to_string();
-            if print::use_color() {
-                error = format!("{}", error.bold().light_yellow());
-            }
+            let warning = "warning:".to_string().emphasized().warning();
             eprintln!(
                 "\
-                {error} The '--no-version-check' option was renamed.\n\
+                {warning} The '--no-version-check' option was renamed.\n\
                 \n         \
                     Use '--no-cli-update-check' instead.\
                 \n\

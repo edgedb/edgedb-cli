@@ -2,11 +2,10 @@ use std::fmt::Write;
 
 use colorful::core::color_string::CString;
 use colorful::core::StrMarker;
-use colorful::Colorful;
 use snafu::{Error, ErrorCompat, IntoError};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::print::formatter::ColorfulExt;
+use crate::print::color::Highlight;
 use crate::print::stream::Output;
 use crate::print::Printer;
 
@@ -173,7 +172,7 @@ impl<T: Output> Printer<T> {
         if self.flow || !self.trailing_comma {
             self.delim = Comma;
         } else {
-            self.write(",".clear())?;
+            self.write(",".unstyled())?;
             self.commit_line()?;
         }
         Ok(())
@@ -182,23 +181,23 @@ impl<T: Output> Printer<T> {
     pub(in crate::print) fn ellipsis(&mut self) -> Result<T::Error> {
         self.delimit()?;
         if self.flow {
-            self.write("...".clear())?;
+            self.write("...".unstyled())?;
         } else {
-            self.write("...".clear())?;
+            self.write("...".unstyled())?;
             self.write(
                 format!(
                     " (further results hidden \
                 `\\set limit {limit}`)\n",
                     limit = self.max_items.unwrap_or(0)
                 )
-                .dark_gray(),
+                .muted(),
             )?;
         }
         Ok(())
     }
     pub(in crate::print) fn field(&mut self) -> Result<T::Error> {
         self.delim = Field;
-        self.write(": ".clear())
+        self.write(": ".unstyled())
     }
     pub(in crate::print) fn close_block(&mut self, val: &CString, flag: bool) -> Result<T::Error> {
         if self.delim == Comma && !self.flow {
@@ -242,9 +241,9 @@ impl<T: Output> Printer<T> {
     pub(in crate::print) fn delimit(&mut self) -> Result<T::Error> {
         if self.delim == Comma {
             if self.flow {
-                self.write(", ".clear())?;
+                self.write(", ".unstyled())?;
             } else {
-                self.write(",".clear())?;
+                self.write(",".unstyled())?;
                 debug_assert!(!self.trailing_comma);
                 self.commit_line()?;
             }

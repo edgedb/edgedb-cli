@@ -21,7 +21,7 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
         msg!(
             "{} {} Run `{BRANDING_CLI_CMD} project init`.",
             print::err_marker(),
-            "Project is not initialized.".emphasize()
+            "Project is not initialized.".emphasized()
         );
         return Err(ExitCode::new(1).into());
     }

@@ -73,7 +73,7 @@ fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I]) -> Result<String
             implicit_properties: false,
             max_items: None,
             max_vector_length: VectorLimit::Unlimited,
-            styler: Styler::dark_256(),
+            styler: Styler::new(),
         },
     )
 }

@@ -386,7 +386,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
                 msg!(
                     "{} {} with exit code {}",
                     print::err_marker(),
-                    "{BRANDING} failed".emphasize(),
+                    "{BRANDING} failed".emphasized(),
                     code
                 );
             }
@@ -395,7 +395,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
                     "{} {} {}",
                     print::err_marker(),
                     BRANDING,
-                    "failed".emphasize()
+                    "failed".emphasized()
                 );
             }
         }

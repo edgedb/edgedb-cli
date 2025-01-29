@@ -209,9 +209,9 @@ fn upgrade_local_cmd(cmd: &Command, name: &str) -> anyhow::Result<()> {
 
     if pkg_ver <= inst_ver && !cmd.force {
         msg!(
-            "Latest version found {} current instance version is {} Already up to date.",
-            pkg.version.to_string() + ",",
-            inst.get_version()?.emphasize().to_string() + "."
+            "Latest version found {}, current instance version is {}. Already up to date.",
+            pkg.version.to_string(),
+            inst.get_version()?.to_string().emphasized()
         );
         return Ok(());
     }
@@ -250,7 +250,7 @@ fn upgrade_cloud_cmd(
     client.ensure_authenticated()?;
 
     let _inst_name = format!("{org}/{name}");
-    let inst_name = _inst_name.emphasize();
+    let inst_name = _inst_name.emphasized();
 
     let result = upgrade_cloud(org, name, &query, &client, cmd.force, |target_ver| {
         let target_ver_str = target_ver.to_string();
@@ -279,7 +279,11 @@ fn upgrade_cloud_cmd(
             msg!("Canceled.");
         }
         UpgradeAction::None => {
-            msg!("Already up to date.\nRequested upgrade version is {} current instance version is {}", target_ver_str.emphasize().to_string() + ",", result.prior_version.emphasize().to_string() + ".");
+            msg!(
+                "Already up to date.\nRequested upgrade version is {}, current instance version is {}.",
+                target_ver_str.emphasized(),
+                result.prior_version.to_string().emphasized()
+            );
         }
     }
 
@@ -334,7 +338,7 @@ pub fn upgrade_cloud(
 }
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
-    msg!("Upgrading to a minor version {}", pkg.version.emphasize());
+    msg!("Upgrading to a minor version {}", pkg.version.to_string().emphasized());
     let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
     inst.installation = Some(install);
 
@@ -349,8 +353,8 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::R
     control::do_restart(&inst)?;
     msg!(
         "Instance {} successfully upgraded to {}",
-        inst.name.emphasize(),
-        pkg.version.emphasize()
+        inst.name.emphasized(),
+        pkg.version.to_string().emphasized()
     );
     Ok(())
 }
@@ -360,7 +364,7 @@ pub fn upgrade_incompatible(
     pkg: PackageInfo,
     non_interactive: bool,
 ) -> anyhow::Result<()> {
-    msg!("Upgrading to a major version {}", pkg.version.emphasize());
+    msg!("Upgrading to a major version {}", pkg.version.to_string().emphasized());
 
     let old_version = inst.get_version()?.clone();
 
@@ -427,8 +431,8 @@ pub fn upgrade_incompatible(
 
     msg!(
         "Instance {} successfully upgraded to {}",
-        inst.name.emphasize(),
-        pkg.version.emphasize()
+        inst.name.emphasized(),
+        pkg.version.to_string().emphasized()
     );
 
     Ok(())

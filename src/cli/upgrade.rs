@@ -225,7 +225,10 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
         .run()?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
-        msg!("Upgraded to version {}", pkg.version.emphasize());
+        msg!(
+            "Upgraded to version {}",
+            pkg.version.to_string().emphasized()
+        );
     }
     Ok(())
 }

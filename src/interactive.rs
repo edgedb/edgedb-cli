@@ -2,7 +2,6 @@ use std::str;
 use std::time::Instant;
 
 use anyhow::Context;
-use colorful::Colorful;
 use is_terminal::IsTerminal;
 use terminal_size::{terminal_size, Width};
 use tokio::io::{stdout, AsyncWriteExt};
@@ -159,10 +158,12 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config) -> any
     if let Some(config_path) = &cfg.file_name {
         msg!(
             "{}",
-            format_args!("Applied {} configuration file", config_path.display(),).fade()
+            format_args!("Applied {} configuration file", config_path.display(),)
+                .to_string()
+                .muted()
         );
     }
-    msg!("{}", r#"Type \help for help, \quit to quit."#.light_gray());
+    msg!("{}", r#"Type \help for help, \quit to quit."#.muted());
     state.set_history_limit(state.history_limit).await?;
     match _interactive_main(&options, &mut state).await {
         Ok(()) => Ok(()),
@@ -379,7 +380,7 @@ async fn execute_query(
                 if index == 0 && state.print_stats == Detailed {
                     eprintln!(
                         "{}",
-                        format!("First row: {:?}", start.elapsed()).dark_gray()
+                        format!("First row: {:?}", start.elapsed()).muted()
                     );
                 }
                 if let Some(limit) = state.implicit_limit {
@@ -434,7 +435,7 @@ async fn execute_query(
                 if index == 0 && state.print_stats == Detailed {
                     eprintln!(
                         "{}",
-                        format!("First row: {:?}", start.elapsed()).dark_gray()
+                        format!("First row: {:?}", start.elapsed()).muted()
                     );
                 }
                 index += 1;
@@ -473,7 +474,7 @@ async fn execute_query(
                 if index == 0 && state.print_stats == Detailed {
                     eprintln!(
                         "{}",
-                        format!("First row: {:?}", start.elapsed()).dark_gray()
+                        format!("First row: {:?}", start.elapsed()).muted()
                     );
                 }
                 let mut text = match row {
@@ -524,7 +525,7 @@ async fn execute_query(
                 "Query time (including output formatting): {:?}",
                 start.elapsed() - input_duration
             )
-            .dark_gray()
+            .muted()
         );
     }
     state.last_error = None;

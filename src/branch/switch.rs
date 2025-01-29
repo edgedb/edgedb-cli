@@ -3,6 +3,7 @@ use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::connect::Connector;
+use crate::print::Highlight;
 
 pub async fn run(
     options: &Command,
@@ -62,7 +63,8 @@ pub async fn run(
 
     eprintln!(
         "Switching from '{}' to '{}'",
-        current_branch, options.target_branch
+        current_branch.emphasized(),
+        options.target_branch.clone().emphasized()
     );
 
     context

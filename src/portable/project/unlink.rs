@@ -51,7 +51,7 @@ pub fn run(options: &Command, opts: &crate::options::Options) -> anyhow::Result<
         } else {
             match fs::read_to_string(stash_path.join("instance-name")) {
                 Ok(name) => {
-                    msg!("Unlinking instance {}", name.emphasize());
+                    msg!("Unlinking instance {}", name.emphasized());
                 }
                 Err(e) => {
                     print::error!("Cannot read instance name: {e}");
