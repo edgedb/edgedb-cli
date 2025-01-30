@@ -30,10 +30,15 @@ use gel_errors::display::display_error;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
-use buffer::{Delim, Exception, UnwrapExc, WrapErr};
+use buffer::{Delim, Exception, UnwrapExc, WrapErr, fix_infallible};
 use formatter::Formatter;
 use native::FormatExt;
 use stream::Output;
+
+// XXX?
+use gel_protocol::value::Value;
+use crate::table::{self, Cell, Row, Table};
+
 
 #[derive(Snafu, Debug)]
 #[snafu(context(suffix(false)))]
@@ -226,6 +231,148 @@ where
     _native_format(rows, config, w, colors, Stdout {}).await
 }
 
+fn get_printer_string<E>(
+    prn: &mut Printer<&mut String>,
+) -> Result<String, Exception<PrintError<E, Infallible>>>
+where
+    E: fmt::Debug + Error + 'static,
+{
+    prn.commit().map_err(fix_infallible)?;
+    prn.flush_buf().map_err(fix_infallible)?;
+    let mut s = String::new();
+    std::mem::swap(prn.stream, &mut s);
+    Ok(s)
+}
+
+async fn format_table_rows<S, I, E>(
+    // We use a Printer to do the formatting, and it needs to be a string
+    prn: &mut Printer<&mut String>,
+    rows: &mut S,
+) -> Result<table::Table, Exception<PrintError<E, Infallible>>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt + Into<Value>,
+    E: fmt::Debug + Error + 'static,
+{
+    let mut counter: usize = 0;
+
+    let mut table = Table::new();
+    table.set_format(*table::FORMAT);
+
+    let mut title_row = Vec::new();
+    let mut titles_set = false;
+    while let Some(v) = rows.next().await.transpose().wrap_err(StreamErr)? {
+        counter += 1;
+        if let Some(limit) = prn.max_items {
+            if counter > limit {
+                table.add_row(Row::new(vec![Cell::new("...")]));
+                // consume extra items if any
+                while rows.next().await.transpose().wrap_err(StreamErr)?.is_some() {}
+                break;
+            }
+        }
+
+        let mut table_row = Vec::new();
+        let v: Value = v.into();
+        match &v {
+            Value::SQLRow { shape, fields } => {
+                for (s, vi) in shape.elements.iter().zip(fields) {
+                    if !titles_set {
+                        title_row.push(table::header_cell(&s.name));
+                    }
+
+                    match vi {
+                        Some(vi) => vi.format(prn).map_err(fix_infallible)?,
+                        None => {}
+                    };
+                    //
+                    table_row.push(Cell::new(&get_printer_string(prn)?));
+                }
+
+            }
+            _ => {
+                panic!(
+                    "Expected object for SQL table but got {:?}",
+                    v
+                )
+            }
+        }
+
+        if !titles_set {
+            table.set_titles(Row::new(title_row.clone()));
+            titles_set = true;
+        }
+
+        table.add_row(Row::new(table_row));
+    }
+
+    Ok(table)
+}
+
+async fn _table_format<S, I, E>(
+    mut rows: S,
+    config: &Config,
+    _max_width: usize,
+    _colors: bool,
+) -> Result<table::Table, PrintError<E, Infallible>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt + Into<Value>,
+    E: fmt::Debug + Error + 'static,
+{
+    let mut buf = String::new();
+    let mut prn = Printer {
+        // colors,
+        colors: false,
+        indent: config.indent,
+        expand_strings: config.expand_strings,
+        max_width: usize::max_value(),  // lol
+        // max_width,
+        implicit_properties: config.implicit_properties,
+        max_items: config.max_items,
+        max_vector_length: config.max_vector_length,
+        trailing_comma: false,
+
+        buffer: String::with_capacity(128),
+        stream: &mut buf,
+        delim: Delim::None,
+        flow: false,
+        committed: 0,
+        committed_indent: 0,
+        committed_column: 0,
+        column: 0,
+        cur_indent: 0,
+
+        styler: config.styler.clone(),
+    };
+
+    let table = format_table_rows(&mut prn, &mut rows)
+        .await
+        .unwrap_exc()?;
+
+    Ok(table)
+}
+
+
+pub async fn table_to_stdout<S, I, E>(
+    rows: S,
+    config: &Config,
+) -> Result<(), PrintError<E, Infallible>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt + Into<Value>,
+    E: fmt::Debug + Error + 'static,
+{
+    let w = config
+        .max_width
+        .unwrap_or_else(|| terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(80));
+    let colors = config.colors.unwrap_or_else(|| io::stdout().is_terminal());
+    let table = _table_format(rows, config, w, colors).await?;
+    table.printstd();
+    Ok(())
+}
+
+
 async fn _native_format<S, I, E, O>(
     mut rows: S,
     config: &Config,
@@ -278,6 +425,7 @@ where
     prn.end().unwrap_exc().context(PrintErr)?;
     Ok(())
 }
+
 
 fn format_rows_str<I: FormatExt>(
     prn: &mut Printer<&mut String>,

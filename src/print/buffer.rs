@@ -11,6 +11,8 @@ use crate::print::Printer;
 
 use Delim::*;
 
+use std::convert::Infallible;
+
 const HIGH_WATER_MARK: usize = 4096;
 
 #[derive(Debug)] // no Error trait, this struct should not escape to user
@@ -24,6 +26,13 @@ pub(in crate::print) enum Delim {
     None,
     Comma,
     Field,
+}
+
+pub fn fix_infallible<T>(err: Exception<Infallible>) -> Exception<T> {
+    match err {
+        Exception::DisableFlow => Exception::DisableFlow,
+        Exception::Error(e) => match e {},
+    }
 }
 
 pub(in crate::print) type Result<E> = std::result::Result<(), Exception<E>>;

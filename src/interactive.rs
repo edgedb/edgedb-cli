@@ -408,6 +408,27 @@ async fn execute_query(
                 index += 1;
             }
         }
+        Default if state.input_language == repl::InputLanguage::Sql => {
+            // XXX: do we want this more configurable?? probably!
+            match print::table_to_stdout(&mut items, &cfg).await {
+                Ok(()) => {}
+                Err(e) => {
+                    match e {
+                        PrintError::StreamErr {
+                            source: ref error, ..
+                        } => {
+                            print_query_error(error, statement, state.verbose_errors, "<query>")?;
+                        }
+                        _ => eprintln!("{e:#?}"),
+                    }
+                    state.last_error = Some(e.into());
+                    return Err(QueryError)?;
+                }
+            }
+            println!();
+
+            return Err(QueryError)?;
+        }
         Default => {
             match print::native_to_stdout(&mut items, &cfg).await {
                 Ok(()) => {}
