@@ -231,6 +231,8 @@ pub enum Setting {
     VectorDisplayLength(VectorLimitValue),
     /// Set output format
     OutputFormat(OutputFormat),
+    /// Set SQL output format
+    SqlOutputFormat(OutputFormat),
     /// Display typenames in default output mode
     DisplayTypenames(SettingBool),
     /// Disable escaping newlines in quoted strings

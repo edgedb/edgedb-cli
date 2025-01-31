@@ -542,6 +542,7 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
         Language(_) => prompt.input_language.as_str().into(),
         HistorySize(_) => prompt.history_limit.to_string().into(),
         OutputFormat(_) => prompt.output_format.as_str().into(),
+        SqlOutputFormat(_) => prompt.sql_output_format.as_str().into(),
         DisplayTypenames(_) => bool_str(prompt.display_typenames).into(),
         ExpandStrings(_) => bool_str(prompt.print.expand_strings).into(),
         PrintStats(_) => prompt.print_stats.as_str().into(),
@@ -649,6 +650,9 @@ pub async fn execute(
                 }
                 OutputFormat(c) => {
                     prompt.output_format = c.value.expect("only writes here");
+                }
+                SqlOutputFormat(c) => {
+                    prompt.sql_output_format = c.value.expect("only writes here");
                 }
                 DisplayTypenames(b) => {
                     prompt.display_typenames = b.unwrap_value();

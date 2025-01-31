@@ -285,20 +285,18 @@ where
                         Some(vi) => vi.format(prn).map_err(fix_infallible)?,
                         None => {}
                     };
-                    //
                     table_row.push(Cell::new(&get_printer_string(prn)?));
                 }
 
             }
+            // TODO: tuple-like objects should be tabular also
             _ => {
-                panic!(
-                    "Expected object for SQL table but got {:?}",
-                    v
-                )
+                v.format(prn).map_err(fix_infallible)?;
+                table_row.push(Cell::new(&get_printer_string(prn)?));
             }
         }
 
-        if !titles_set {
+        if !titles_set && !title_row.is_empty() {
             table.set_titles(Row::new(title_row.clone()));
             titles_set = true;
         }

@@ -29,6 +29,12 @@ use crate::statement::{read_statement, EndOfFile};
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), anyhow::Error> {
+    let lang = if let Some(l) = q.input_language {
+        l
+    } else {
+        repl::InputLanguage::EdgeQl
+    };
+
     // There's some extra complexity here due to the fact that we
     // have to support now deprecated top-level `--json` and
     // `--tab-separated` flags.
@@ -42,15 +48,13 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
             fmt
         } else {
             // Means "native" serialization; for `edgedb query`
-            // the default is `json-pretty`.
-            repl::OutputFormat::JsonPretty
+            // the default is `json-pretty` for edgeql and `tabular` for SQL.
+            // TODO: Something more machine readable for SQL?
+            match lang {
+                repl::InputLanguage::EdgeQl => repl::OutputFormat::JsonPretty,
+                repl::InputLanguage::Sql => repl::OutputFormat::Tabular,
+            }
         }
-    };
-
-    let lang = if let Some(l) = q.input_language {
-        l
-    } else {
-        repl::InputLanguage::EdgeQl
     };
 
     if let Some(filename) = &q.file {
@@ -191,6 +195,22 @@ async fn _run_query(
                 stdout().lock().write_all(text.as_bytes())?;
             }
         }
+        repl::OutputFormat::Tabular => match print::table_to_stdout(&mut items, &cfg).await {
+            Ok(()) => {}
+            Err(e) => {
+                match e {
+                    PrintError::StreamErr {
+                        source: ref error, ..
+                    } => {
+                        print::error!("{error}");
+                    }
+                    _ => {
+                        print::error!("{e}");
+                    }
+                }
+                return Ok(());
+            }
+        },
         repl::OutputFormat::Default => match print::native_to_stdout(&mut items, &cfg).await {
             Ok(()) => {}
             Err(e) => {
