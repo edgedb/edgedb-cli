@@ -820,7 +820,7 @@ async fn _create(
     options: &Options,
     create: &CreateMigration,
 ) -> anyhow::Result<()> {
-    let ctx = Context::from_project_or_config(&create.cfg, false).await?;
+    let ctx = Context::for_migration_config(&create.cfg, false).await?;
 
     if dev_mode::check_client(cli).await? {
         let dev_num = query_row::<i64>(
@@ -1030,6 +1030,7 @@ async fn start_migration() {
     let ctx = Context {
         schema_dir,
         quiet: false,
+        project: None,
     };
 
     let res = gen_start_migration(&ctx).await.unwrap();

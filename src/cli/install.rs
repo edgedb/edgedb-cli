@@ -472,7 +472,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud_opts: options.clone(),
         };
-        project::init::init_existing(&init, &project, &options)?;
+        project::init::init_existing(&init, project, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)

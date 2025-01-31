@@ -36,7 +36,7 @@ pub async fn main(
         &temp_branch,
         source_connection,
         &mut temp_branch_connection,
-        &project,
+        project,
         cli_opts,
         !options.no_apply,
     )
@@ -84,7 +84,7 @@ async fn rebase(
     branch: &str,
     source_connection: &mut Connection,
     target_connection: &mut Connection,
-    project: &project::Context,
+    project: project::Context,
     cli_opts: &Options,
     apply_migrations: bool,
 ) -> anyhow::Result<()> {

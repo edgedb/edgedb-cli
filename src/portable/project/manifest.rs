@@ -20,6 +20,7 @@ use crate::print::{self, msg, Highlight};
 pub struct Manifest {
     pub instance: Instance,
     pub project: Option<Project>,
+    pub hooks: Option<Hooks>,
 }
 
 impl Manifest {
@@ -60,6 +61,37 @@ impl Project {
     }
 }
 
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct Hooks {
+    pub project: Option<ProjectHooks>,
+    pub branch: Option<BranchHooks>,
+    pub migration: Option<MigrationHooks>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct ProjectHooks {
+    pub init: Option<Hook>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct BranchHooks {
+    pub switch: Option<Hook>,
+    pub wipe: Option<Hook>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct MigrationHooks {
+    pub apply: Option<Hook>,
+    pub rebase: Option<Hook>,
+    pub merge: Option<Hook>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct Hook {
+    pub before: Option<String>,
+    pub after: Option<String>,
+}
+
 #[context("error reading project config `{}`", path.display())]
 pub fn read(path: &Path) -> anyhow::Result<Manifest> {
     let text = fs::read_to_string(path)?;
@@ -85,6 +117,7 @@ pub fn read(path: &Path) -> anyhow::Result<Manifest> {
                 .and_then(|p| p.schema_dir)
                 .map(|s| PathBuf::from(s.into_inner())),
         }),
+        hooks: val.hooks,
     });
 }
 
@@ -204,6 +237,7 @@ pub struct SrcManifest {
     #[serde(alias = "edgedb")]
     pub instance: SrcInstance,
     pub project: Option<SrcProject>,
+    pub hooks: Option<Hooks>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }

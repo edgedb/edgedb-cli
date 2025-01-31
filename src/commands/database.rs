@@ -58,33 +58,35 @@ pub async fn drop(
 }
 
 pub async fn wipe(
-    cli: &mut Connection,
-    options: &WipeDatabase,
-    _: &Options,
+    connection: &mut Connection,
+    cmd: &WipeDatabase,
+    options: &Options,
 ) -> Result<(), anyhow::Error> {
-    if cli.get_version().await?.specific().major >= 5 {
-        eprintln!("'database wipe' is deprecated in {BRANDING} 5+. Please use 'branch wipe'");
+    let context = crate::branch::context::Context::new(options).await?;
+
+    if connection.get_version().await?.specific().major >= 5 {
+        print::warn!("'database wipe' is deprecated in {BRANDING} 5+. Please use 'branch wipe'");
     }
 
-    if cli.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
+    if connection.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
         return Err(anyhow::anyhow!(
             "The `database wipe` command is only \
                             supported in {BRANDING} >= 3.0"
         ))
         .hint("Use `database drop`, `database create`")?;
     }
-    if !options.non_interactive {
+    if !cmd.non_interactive {
         let q = question::Confirm::new_dangerous(format!(
             "Do you really want to wipe \
                     the contents of the database {:?}?",
-            cli.database()
+            connection.database()
         ));
-        if !cli.ping_while(q.async_ask()).await? {
+        if !connection.ping_while(q.async_ask()).await? {
             print::error!("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }
-    let (status, _warnings) = cli.execute("RESET SCHEMA TO initial", &()).await?;
-    print::completion(&status);
+
+    crate::branch::wipe::do_wipe(connection, &context).await?;
     Ok(())
 }

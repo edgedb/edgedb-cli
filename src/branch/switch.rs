@@ -1,8 +1,8 @@
-use crate::branch;
 use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::connect::Connector;
+use crate::{branch, hooks, print};
 
 pub async fn run(
     options: &Command,
@@ -13,6 +13,10 @@ pub async fn run(
         eprintln!("Cannot switch branches without specifying the instance");
         eprintln!("Either change directory to a project with a linked instance or use --instance argument.");
         anyhow::bail!("");
+    }
+
+    if let Some(project) = &context.get_project().await? {
+        hooks::on_action("branch.switch.before", project).await?;
     }
 
     let current_branch = if let Some(mut connection) = connect_if_branch_exists(connector).await? {
@@ -60,14 +64,19 @@ pub async fn run(
         }
     };
 
-    eprintln!(
+    print::msg!(
         "Switching from '{}' to '{}'",
-        current_branch, options.target_branch
+        current_branch,
+        options.target_branch
     );
 
     context
         .update_current_branch(&options.target_branch)
         .await?;
+
+    if let Some(project) = &context.get_project().await? {
+        hooks::on_action("branch.switch.after", project).await?;
+    }
 
     Ok(branch::CommandResult {
         new_branch: Some(options.target_branch.clone()),

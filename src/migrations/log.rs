@@ -3,6 +3,7 @@ use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::options::MigrationLog;
 use crate::migrations::{db_migration, migration};
+use crate::print::Highlight;
 
 pub async fn log(
     cli: &mut Connection,
@@ -35,16 +36,7 @@ async fn _log_db(
     options: &MigrationLog,
 ) -> Result<(), anyhow::Error> {
     let migrations = db_migration::read_all(cli, false, false).await?;
-    let limit = options.limit.unwrap_or(migrations.len());
-    if options.newest_first {
-        for rev in migrations.iter().rev().take(limit) {
-            println!("{}", rev.0);
-        }
-    } else {
-        for rev in migrations.iter().take(limit) {
-            println!("{}", rev.0);
-        }
-    }
+    print(&migrations, options);
     Ok(())
 }
 
@@ -56,8 +48,13 @@ pub async fn log_fs(common: &Options, options: &MigrationLog) -> Result<(), anyh
 async fn log_fs_async(_common: &Options, options: &MigrationLog) -> Result<(), anyhow::Error> {
     assert!(options.from_fs);
 
-    let ctx = Context::from_project_or_config(&options.cfg, false).await?;
+    let ctx = Context::for_migration_config(&options.cfg, false).await?;
     let migrations = migration::read_all(&ctx, true).await?;
+    print(&migrations, options);
+    Ok(())
+}
+
+fn print<T>(migrations: &indexmap::IndexMap<String, T>, options: &MigrationLog) {
     let limit = options.limit.unwrap_or(migrations.len());
     if options.newest_first {
         for rev in migrations.keys().rev().take(limit) {
@@ -68,5 +65,7 @@ async fn log_fs_async(_common: &Options, options: &MigrationLog) -> Result<(), a
             println!("{rev}");
         }
     }
-    Ok(())
+    if migrations.is_empty() {
+        println!("{}", "<no migrations>".muted());
+    }
 }

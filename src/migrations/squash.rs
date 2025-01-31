@@ -33,7 +33,7 @@ pub async fn main(
     _options: &Options,
     create: &CreateMigration,
 ) -> anyhow::Result<()> {
-    let ctx = Context::from_project_or_config(&create.cfg, create.non_interactive).await?;
+    let ctx = Context::for_migration_config(&create.cfg, create.non_interactive).await?;
     let migrations = migration::read_all(&ctx, true).await?;
     let Some(db_rev) = migrations_applied(cli, &ctx, &migrations).await? else {
         return Err(ExitCode::new(3).into());

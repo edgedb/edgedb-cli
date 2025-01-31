@@ -97,12 +97,19 @@ impl Wsl {
         pro.no_proxy();
         pro
     }
-    pub fn extension_loader(&self, path: &Path) -> process::Native {
-        let mut pro = process::Native::new("edgedb", "edgedb", "wsl");
+    pub fn sh(&self, _current_dir: &Path) -> process::Native {
+        let mut pro = process::Native::new("sh", "sh", "wsl");
         pro.arg("--user").arg("edgedb");
         pro.arg("--distribution").arg(&self.distribution);
-        pro.arg(path);
-        pro.no_proxy();
+        pro.arg("_EDGEDB_FROM_WINDOWS=1");
+        if let Some(log_env) = env::var_os("RUST_LOG") {
+            let mut pair = OsString::with_capacity("RUST_LOG=".len() + log_env.len());
+            pair.push("RUST_LOG=");
+            pair.push(log_env);
+            pro.arg(pair);
+        }
+        // TODO: set current dir
+        pro.arg("/bin/sh");
         pro
     }
     #[cfg(windows)]
@@ -608,7 +615,7 @@ fn get_wsl() -> anyhow::Result<Option<&'static Wsl>> {
     }
 }
 
-fn try_get_wsl() -> anyhow::Result<&'static Wsl> {
+pub fn try_get_wsl() -> anyhow::Result<&'static Wsl> {
     match WSL.get_or_try_init(|| get_wsl_distro(false)) {
         Ok(v) => Ok(v),
         Err(e) if e.is::<NoDistribution>() => Err(e).hint(
@@ -674,7 +681,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool) -> anyhow::Resul
         .arg("-I")
         .arg(instance);
     let instance = String::from(instance);
-    pro.stop_process(move || {
+    pro.set_stop_process_command(move || {
         let mut cmd = tokio::process::Command::new("wsl");
         cmd.arg("--user").arg("edgedb");
         cmd.arg("--distribution").arg(&wsl.distribution);

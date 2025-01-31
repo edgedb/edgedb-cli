@@ -47,7 +47,7 @@ pub async fn status(
     _options: &Options,
     status: &ShowStatus,
 ) -> Result<(), anyhow::Error> {
-    let ctx = Context::from_project_or_config(&status.cfg, status.quiet).await?;
+    let ctx = Context::for_migration_config(&status.cfg, status.quiet).await?;
     let migrations = migration::read_all(&ctx, true).await?;
     match up_to_date_check(cli, &ctx, &migrations).await? {
         Some(_) if status.quiet => Ok(()),

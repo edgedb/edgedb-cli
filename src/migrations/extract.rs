@@ -46,7 +46,7 @@ pub async fn extract(
     _opts: &Options,
     params: &ExtractMigrations,
 ) -> anyhow::Result<()> {
-    let src_ctx = Context::from_project_or_config(&params.cfg, params.non_interactive).await?;
+    let src_ctx = Context::for_migration_config(&params.cfg, params.non_interactive).await?;
     let current = migration::read_all(&src_ctx, false).await?;
     let mut disk_iter = current.into_iter();
 
@@ -56,6 +56,7 @@ pub async fn extract(
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
         quiet: false,
+        project: None,
     };
     let mut to_delete = Vec::new();
 

@@ -237,3 +237,142 @@ fn project_link_and_init() {
         .context("destroy-2", "should unlink and destroy project")
         .success();
 }
+
+#[test]
+#[cfg(not(target_os = "windows"))]
+fn hooks() {
+    use std::{fs, path};
+
+    let branch_log_file = path::Path::new("tests/proj/project3/branch.log");
+    fs::remove_file(branch_log_file).ok();
+
+    Command::new("edgedb")
+        .arg("--version")
+        .assert()
+        .context("version", "command-line version option")
+        .success()
+        .stdout(predicates::str::contains(EXPECTED_VERSION));
+
+    Command::new("edgedb")
+        .arg("instance")
+        .arg("create")
+        .arg("inst2")
+        .arg("default-branch-name")
+        .arg("--non-interactive")
+        .assert()
+        .context("instance-create", "")
+        .success();
+
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("project")
+        .arg("init")
+        .arg("--link")
+        .arg("--server-instance=inst2")
+        .arg("--non-interactive")
+        .assert()
+        .context("project-init", "")
+        .success()
+        .stderr(ContainsHooks {
+            expected: &[
+                "project.init.after",
+                "migration.apply.before",
+                "migration.apply.after",
+            ],
+        });
+
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("branch")
+        .arg("switch")
+        .arg("--create")
+        .arg("--empty")
+        .arg("another")
+        .assert()
+        .context("branch-switch", "")
+        .success()
+        .stderr(ContainsHooks {
+            expected: &["branch.switch.before", "branch.switch.after"],
+        });
+
+    let branch_log = fs::read_to_string(branch_log_file).unwrap();
+    assert_eq!(branch_log, "another\n");
+
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("branch")
+        .arg("merge")
+        .arg("default-branch-name")
+        .assert()
+        .context("branch-merge", "")
+        .success()
+        .stderr(ContainsHooks {
+            expected: &["migration.apply.before", "migration.apply.after"],
+        });
+
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("branch")
+        .arg("wipe")
+        .arg("another")
+        .arg("--non-interactive")
+        .assert()
+        .context("branch-wipe", "")
+        .success()
+        .stderr(ContainsHooks {
+            expected: &["branch.wipe.before", "branch.wipe.after"],
+        });
+
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("branch")
+        .arg("switch")
+        .arg("default-branch-name")
+        .assert()
+        .context("branch-switch-2", "")
+        .success()
+        .stderr(ContainsHooks {
+            expected: &["branch.switch.before", "branch.switch.after"],
+        });
+
+    let branch_log = fs::read_to_string(branch_log_file).unwrap();
+    assert_eq!(branch_log, "another\ndefault-branch-name\n");
+}
+
+#[derive(Debug)]
+struct ContainsHooks<'a> {
+    expected: &'a [&'static str],
+}
+
+impl<'a> predicates::Predicate<str> for ContainsHooks<'a> {
+    fn eval(&self, variable: &str) -> bool {
+        let re = regex::RegexBuilder::new(r"^hook ([a-z.]+):")
+            .multi_line(true)
+            .build()
+            .unwrap();
+        let found_hooks: Vec<_> = re
+            .captures_iter(variable)
+            .map(|c| c.extract::<1>().1[0])
+            .collect();
+
+        self.expected == found_hooks.as_slice()
+    }
+}
+
+impl<'a> predicates::reflection::PredicateReflection for ContainsHooks<'a> {
+    fn parameters<'b>(
+        &'b self,
+    ) -> Box<dyn Iterator<Item = predicates::reflection::Parameter<'b>> + 'b> {
+        let mut params = std::vec![];
+        for e in self.expected {
+            params.push(predicates::reflection::Parameter::new("hook", e));
+        }
+        Box::new(params.into_iter())
+    }
+}
+
+impl<'a> std::fmt::Display for ContainsHooks<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self, f)
+    }
+}
