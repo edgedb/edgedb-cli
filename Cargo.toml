@@ -140,6 +140,7 @@ renamore = {version="0.3.2", features = ["always-fallback"]}
 anes = "0.2.0"
 geozero = {version="0.14.0", features=["with-wkb"]}
 terminal-light = "1.7.0"
+globset = "0.4.15"
 
 [dependencies.bzip2]
 version = "*"

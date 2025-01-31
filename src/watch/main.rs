@@ -16,7 +16,11 @@ use crate::print::AsRelativeToCurrentDir;
 use crate::watch::WatchCommand;
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn run(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
+pub async fn run(options: &Options, cmd: &WatchCommand) -> anyhow::Result<()> {
+    if cmd.files {
+        return super::files::run().await;
+    }
+
     let project = project::ensure_ctx_async(None).await?;
     let mut ctx = WatchContext {
         connector: options.create_connector().await?,
