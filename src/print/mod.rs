@@ -30,15 +30,14 @@ use gel_errors::display::display_error;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
-use buffer::{Delim, Exception, UnwrapExc, WrapErr, fix_infallible};
+use buffer::{fix_infallible, Delim, Exception, UnwrapExc, WrapErr};
 use formatter::Formatter;
 use native::FormatExt;
 use stream::Output;
 
 // XXX?
-use gel_protocol::value::Value;
 use crate::table::{self, Cell, Row, Table};
-
+use gel_protocol::value::Value;
 
 #[derive(Snafu, Debug)]
 #[snafu(context(suffix(false)))]
@@ -287,7 +286,6 @@ where
                     };
                     table_row.push(Cell::new(&get_printer_string(prn)?));
                 }
-
             }
             Value::Object { shape, fields } => {
                 for (s, vi) in shape.elements.iter().zip(fields) {
@@ -301,7 +299,6 @@ where
                     };
                     table_row.push(Cell::new(&get_printer_string(prn)?));
                 }
-
             }
             // Q: Should we do NamedTuple and Tuple also?
             _ => {
@@ -338,7 +335,7 @@ where
         colors: false,
         indent: config.indent,
         expand_strings: config.expand_strings,
-        max_width: usize::max_value(),  // lol
+        max_width: usize::max_value(), // lol
         // max_width,
         implicit_properties: config.implicit_properties,
         max_items: config.max_items,
@@ -358,13 +355,10 @@ where
         styler: config.styler.clone(),
     };
 
-    let table = format_table_rows(&mut prn, &mut rows)
-        .await
-        .unwrap_exc()?;
+    let table = format_table_rows(&mut prn, &mut rows).await.unwrap_exc()?;
 
     Ok(table)
 }
-
 
 pub async fn table_to_stdout<S, I, E>(
     rows: S,
@@ -383,7 +377,6 @@ where
     table.printstd();
     Ok(())
 }
-
 
 async fn _native_format<S, I, E, O>(
     mut rows: S,
@@ -437,7 +430,6 @@ where
     prn.end().unwrap_exc().context(PrintErr)?;
     Ok(())
 }
-
 
 fn format_rows_str<I: FormatExt>(
     prn: &mut Printer<&mut String>,

@@ -455,7 +455,9 @@ impl std::str::FromStr for OutputFormat {
 impl From<OutputFormat> for IoFormat {
     fn from(val: OutputFormat) -> Self {
         match val {
-            OutputFormat::Default | OutputFormat::TabSeparated | OutputFormat::Tabular => IoFormat::Binary,
+            OutputFormat::Default | OutputFormat::TabSeparated | OutputFormat::Tabular => {
+                IoFormat::Binary
+            }
             OutputFormat::JsonLines | OutputFormat::JsonPretty => IoFormat::JsonElements,
             OutputFormat::Json => IoFormat::Json,
         }
