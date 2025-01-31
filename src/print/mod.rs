@@ -289,7 +289,21 @@ where
                 }
 
             }
-            // TODO: tuple-like objects should be tabular also
+            Value::Object { shape, fields } => {
+                for (s, vi) in shape.elements.iter().zip(fields) {
+                    if !titles_set {
+                        title_row.push(table::header_cell(&s.name));
+                    }
+
+                    match vi {
+                        Some(vi) => vi.format(prn).map_err(fix_infallible)?,
+                        None => {}
+                    };
+                    table_row.push(Cell::new(&get_printer_string(prn)?));
+                }
+
+            }
+            // Q: Should we do NamedTuple and Tuple also?
             _ => {
                 v.format(prn).map_err(fix_infallible)?;
                 table_row.push(Cell::new(&get_printer_string(prn)?));
