@@ -242,6 +242,41 @@ where
     Ok(s)
 }
 
+fn is_numeric(v: &Value) -> bool {
+    matches!(
+        v,
+        Value::Int16(_)
+            | Value::Int32(_)
+            | Value::Int64(_)
+            | Value::Float32(_)
+            | Value::Float64(_)
+            | Value::BigInt(_)
+            | Value::Decimal(_)
+    )
+}
+
+fn to_cell<E>(
+    prn: &mut Printer<&mut String>,
+    v: &Option<Value>,
+) -> Result<table::Cell, Exception<PrintError<E, Infallible>>>
+where
+    E: fmt::Debug + Error + 'static,
+{
+    match v {
+        Some(vi) => vi.format(prn).map_err(fix_infallible)?,
+        None => {}
+    };
+    let mut cell = Cell::new(&get_printer_string(prn)?);
+    // Right justify numbers.
+    match v {
+        Some(vi) if is_numeric(vi) => {
+            cell = cell.style_spec("r");
+        }
+        _ => {}
+    }
+    Ok(cell)
+}
+
 async fn format_table_rows<S, I, E>(
     // We use a Printer to do the formatting, and it needs to be a string
     prn: &mut Printer<&mut String>,
@@ -279,11 +314,7 @@ where
                         title_row.push(table::header_cell(&s.name));
                     }
 
-                    match vi {
-                        Some(vi) => vi.format(prn).map_err(fix_infallible)?,
-                        None => {}
-                    };
-                    table_row.push(Cell::new(&get_printer_string(prn)?));
+                    table_row.push(to_cell(prn, vi)?);
                 }
             }
             Value::Object { shape, fields } => {
@@ -292,17 +323,12 @@ where
                         title_row.push(table::header_cell(&s.name));
                     }
 
-                    match vi {
-                        Some(vi) => vi.format(prn).map_err(fix_infallible)?,
-                        None => {}
-                    };
-                    table_row.push(Cell::new(&get_printer_string(prn)?));
+                    table_row.push(to_cell(prn, vi)?);
                 }
             }
             // Q: Should we do NamedTuple and Tuple also?
             _ => {
-                v.format(prn).map_err(fix_infallible)?;
-                table_row.push(Cell::new(&get_printer_string(prn)?));
+                table_row.push(to_cell(prn, &Some(v))?);
             }
         }
 
