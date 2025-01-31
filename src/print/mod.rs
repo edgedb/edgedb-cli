@@ -35,7 +35,6 @@ use formatter::Formatter;
 use native::FormatExt;
 use stream::Output;
 
-// XXX?
 use crate::table::{self, Cell, Row, Table};
 use gel_protocol::value::Value;
 
@@ -329,14 +328,18 @@ where
     I: FormatExt + Into<Value>,
     E: fmt::Debug + Error + 'static,
 {
+    // This is kind of hacky, but for ~performance~ and to avoid
+    // needing to pass around enough config info to recreate new ones,
+    // we repeatedly invoke a single Printer and then pull the strings
+    // out and put them in a table we are building.
     let mut buf = String::new();
     let mut prn = Printer {
-        // colors,
+        // We don't use colors yet because the table library gets
+        // confused.
         colors: false,
         indent: config.indent,
         expand_strings: config.expand_strings,
-        max_width: usize::max_value(), // lol
-        // max_width,
+        max_width: usize::MAX,
         implicit_properties: config.implicit_properties,
         max_items: config.max_items,
         max_vector_length: config.max_vector_length,
