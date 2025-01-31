@@ -15,6 +15,10 @@ pub async fn run(
         anyhow::bail!("");
     }
 
+    if let Some(project) = &context.get_project().await? {
+        hooks::on_action("branch.switch.before", project).await?;
+    }
+
     let current_branch = if let Some(mut connection) = connect_if_branch_exists(connector).await? {
         let current_branch = context.get_current_branch(&mut connection).await?;
         if current_branch == options.target_branch {
@@ -59,10 +63,6 @@ pub async fn run(
             None => anyhow::bail!("The target branch doesn't exist."),
         }
     };
-
-    if let Some(project) = &context.get_project().await? {
-        hooks::on_action("branch.switch.before", project).await?;
-    }
 
     print::msg!(
         "Switching from '{}' to '{}'",
