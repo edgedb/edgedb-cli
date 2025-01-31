@@ -1,6 +1,15 @@
-pub mod options;
-
+mod fs_watcher;
 mod main;
 
-pub use main::wait_changes;
-pub use main::watch;
+pub use fs_watcher::FsWatcher;
+pub use main::run;
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct WatchCommand {
+    #[command(flatten)]
+    pub conn: crate::options::ConnectionOptions,
+
+    /// Print DDLs applied to the schema.
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
+}

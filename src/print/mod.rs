@@ -443,7 +443,11 @@ impl AsRelativeToCurrentDir for std::path::Path {
         let curr_dir = std::env::current_dir().ok();
 
         if let Some(stripped) = curr_dir.and_then(|wd| self.strip_prefix(&wd).ok()) {
-            stripped
+            if stripped.components().count() == 0 {
+                self
+            } else {
+                stripped
+            }
         } else {
             self
         }

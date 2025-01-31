@@ -32,7 +32,7 @@ use crate::portable::project;
 use crate::print::{self, Highlight};
 use crate::repl::{InputLanguage, OutputFormat};
 use crate::tty_password;
-use crate::watch::options::WatchCommand;
+use crate::watch::WatchCommand;
 
 const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;

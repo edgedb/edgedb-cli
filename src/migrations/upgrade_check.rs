@@ -1,12 +1,11 @@
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use gel_tokio::Builder;
 use indicatif::ProgressBar;
-use notify::{RecursiveMode, Watcher};
+use notify::RecursiveMode;
 use tokio::fs;
-use tokio::sync::watch;
 
 use crate::async_try;
 use crate::branding::{BRANDING_CLI_CMD, QUERY_TAG};
@@ -25,7 +24,7 @@ use crate::portable::repository::{self, PackageInfo, Query};
 use crate::portable::server::install;
 use crate::print::{self, msg, Highlight};
 use crate::process;
-use crate::watch::wait_changes;
+use crate::watch;
 
 #[derive(Debug, serde::Deserialize)]
 struct EdgedbStatus {
@@ -191,24 +190,17 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
     }
 
     if watch {
-        let (tx, rx) = watch::channel(());
-        let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
-            res.map_err(|e| {
-                log::warn!("Error watching filesystem: {:#}", e);
-            })
-            .ok();
-            tx.send(()).unwrap();
-        })?;
+        let mut watcher = watch::FsWatcher::new()?;
         // TODO(tailhook) do we have to monitor `{gel,edgedb}.toml` for the schema
         // dir change
-        watch.watch(&ctx.schema_dir, RecursiveMode::Recursive)?;
+        watcher.watch(&ctx.schema_dir, RecursiveMode::Recursive)?;
 
         let ok = matches!(single_check(ctx, cli).await?, Okay);
         if ok {
             print::success!("The schema is forward compatible. Ready for upgrade.");
         }
         eprintln!("Monitoring {:?} for changes.", &ctx.schema_dir);
-        watch_loop(rx, ctx, cli, ok).await?;
+        watch_loop(watcher, ctx, cli, ok).await?;
         Ok(())
     } else {
         match single_check(ctx, cli).await? {
@@ -303,18 +295,17 @@ fn print_apply_migration_error() {
 }
 
 pub async fn watch_loop(
-    mut rx: watch::Receiver<()>,
+    mut watcher: watch::FsWatcher,
     ctx: &Context,
     cli: &mut Connection,
     mut ok: bool,
 ) -> anyhow::Result<()> {
-    let mut retry_deadline = None::<Instant>;
+    let mut retry_timeout = None::<Duration>;
     loop {
         // note we don't wait for interrupt here because if interrupt happens
         // the `background_for` method of the process takes care of it.
-        cli.ping_while(wait_changes(&mut rx, retry_deadline))
-            .await?;
-        retry_deadline = None;
+        cli.ping_while(watcher.wait(retry_timeout)).await?;
+        retry_timeout = None;
         match single_check(ctx, cli).await {
             Ok(CheckResult::Okay) => {
                 if !ok {
@@ -335,7 +326,7 @@ pub async fn watch_loop(
                              Will retry in 10s.",
                     e
                 );
-                retry_deadline = Some(Instant::now() + Duration::from_secs(10));
+                retry_timeout = Some(Duration::from_secs(10));
             }
         }
     }
