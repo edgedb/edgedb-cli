@@ -1,23 +1,3 @@
-use std::convert::Infallible;
-use std::error::Error;
-use std::fmt;
-use std::io;
-use std::sync::OnceLock;
-
-use colorful::{Color, Colorful};
-use const_format::concatcp;
-use is_terminal::IsTerminal;
-use snafu::{AsErrorSource, ResultExt, Snafu};
-use terminal_size::{terminal_size, Width};
-use tokio_stream::{Stream, StreamExt};
-
-use gel_errors::display::display_error;
-
-use crate::branding::BRANDING_CLI_CMD;
-use crate::repl::VectorLimit;
-
-pub use crate::msg;
-
 mod buffer;
 mod color;
 mod formatter;
@@ -30,12 +10,29 @@ mod tests;
 
 pub use crate::error_display::print_query_warning as warning;
 pub use crate::error_display::print_query_warnings as warnings;
+pub use crate::msg;
+pub use color::Highlight;
+
+use std::convert::Infallible;
+use std::error::Error;
+use std::fmt;
+use std::io;
+use std::sync::OnceLock;
+
+use const_format::concatcp;
+use is_terminal::IsTerminal;
+use snafu::{AsErrorSource, ResultExt, Snafu};
+use terminal_size::{terminal_size, Width};
+use tokio_stream::{Stream, StreamExt};
+
+use gel_errors::display::display_error;
+
+use crate::branding::BRANDING_CLI_CMD;
+use crate::repl::VectorLimit;
 
 use buffer::{Delim, Exception, UnwrapExc, WrapErr};
-pub use color::Highlight;
-use formatter::ColorfulExt;
-pub(in crate::print) use formatter::Formatter;
-pub(in crate::print) use native::FormatExt;
+use formatter::Formatter;
+use native::FormatExt;
 use stream::Output;
 
 #[derive(Snafu, Debug)]
@@ -96,7 +93,7 @@ impl Config {
             implicit_properties: false,
             max_items: None,
             max_vector_length: VectorLimit::Unlimited,
-            styler: style::Styler::dark_256(),
+            styler: style::Styler::new(),
         }
     }
     #[allow(dead_code)]
@@ -127,16 +124,7 @@ impl Config {
 }
 
 pub fn completion<B: AsRef<[u8]>>(res: B) {
-    if use_color() {
-        eprintln!(
-            "{}",
-            format!("OK: {}", String::from_utf8_lossy(res.as_ref()))
-                .dark_gray()
-                .bold()
-        );
-    } else {
-        eprintln!("OK: {}", String::from_utf8_lossy(res.as_ref()));
-    }
+    msg!("OK: {}", String::from_utf8_lossy(res.as_ref()).emphasized());
 }
 
 async fn format_rows_buf<S, I, E, O>(
@@ -153,7 +141,7 @@ where
     O::Error: fmt::Debug + Error + 'static,
 {
     let branch = prn
-        .open_block(prn.styler.apply(style::Style::SetLiteral, "{"))
+        .open_block(prn.styler.apply(style::Style::Set, "{"))
         .wrap_err(PrintErr)?;
 
     debug_assert!(branch);
@@ -174,7 +162,7 @@ where
         // After line is reached we get Exception::DisableFlow
     }
     *end_of_stream = true;
-    prn.close_block(&prn.styler.apply(style::Style::SetLiteral, "}"), true)
+    prn.close_block(&prn.styler.apply(style::Style::Set, "}"), true)
         .wrap_err(PrintErr)?;
     Ok(())
 }
@@ -217,7 +205,7 @@ where
         v.format(prn).wrap_err(PrintErr)?;
         prn.comma().wrap_err(PrintErr)?;
     }
-    prn.close_block(&prn.styler.apply(style::Style::SetLiteral, "}"), true)
+    prn.close_block(&prn.styler.apply(style::Style::Set, "}"), true)
         .wrap_err(PrintErr)?;
     Ok(())
 }
@@ -301,14 +289,14 @@ fn format_rows_str<I: FormatExt>(
     if reopen {
         prn.reopen_block()?;
     } else {
-        let cp = prn.open_block(open.clear())?;
+        let cp = prn.open_block(open.unstyled())?;
         debug_assert!(cp);
     }
     for v in items {
         v.format(prn)?;
         prn.comma()?;
     }
-    prn.close_block(&close.clear(), true)?;
+    prn.close_block(&close.unstyled(), true)?;
     Ok(())
 }
 
@@ -405,15 +393,11 @@ pub fn use_color() -> bool {
 }
 
 pub fn prompt(line: impl fmt::Display) {
-    if use_color() {
-        println!("{}", line.to_string().bold().color(Color::Orange3),);
-    } else {
-        println!("{line}");
-    }
+    println!("{}", line.to_string().emphasized().warning());
 }
 
 pub fn err_marker() -> impl fmt::Display {
-    concatcp!(BRANDING_CLI_CMD, " error:").err_marker()
+    concatcp!(BRANDING_CLI_CMD, " error:").danger().emphasized()
 }
 
 #[doc(hidden)]
@@ -423,7 +407,7 @@ pub fn write_error(line: impl fmt::Display) {
         msg!("{} {}", err_marker(), text);
     } else {
         // Emphasise only short lines. Long lines with bold look ugly.
-        msg!("{} {}", err_marker(), text.emphasize());
+        msg!("{} {}", err_marker(), text.emphasized());
     }
 }
 
@@ -434,32 +418,20 @@ pub fn edgedb_error(err: &gel_errors::Error, verbose: bool) {
 
 #[doc(hidden)]
 pub fn write_success(line: impl fmt::Display) {
-    if use_color() {
-        msg!("{}", line.to_string().bold().light_green());
-    } else {
-        msg!("{line}");
-    }
+    msg!("{}", line.to_string().success().emphasized());
 }
 
 pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
-    if use_color() {
-        msg!(
-            "{}: {}",
-            title.to_string().bold().light_green(),
-            msg.to_string().bold().white()
-        );
-    } else {
-        msg!("{title}: {msg}");
-    }
+    msg!(
+        "{}: {}",
+        title.to_string().emphasized().success(),
+        msg.to_string().emphasized()
+    );
 }
 
 #[doc(hidden)]
 pub fn write_warn(line: impl fmt::Display) {
-    if use_color() {
-        msg!("{}", line.to_string().bold().yellow());
-    } else {
-        msg!("{line}");
-    }
+    msg!("{}", line.to_string().emphasized().warning());
 }
 
 pub trait AsRelativeToCurrentDir {

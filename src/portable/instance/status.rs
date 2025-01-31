@@ -382,7 +382,7 @@ async fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus>
             msg!(
                 "{} No instance {} found",
                 print::err_marker(),
-                name.emphasize()
+                name.emphasized()
             );
         }
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());

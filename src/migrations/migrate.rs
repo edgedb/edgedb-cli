@@ -2,7 +2,6 @@ use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 
 use anyhow::Context as _;
-use colorful::Colorful;
 use gel_protocol::common::{
     Capabilities, Cardinality, CompilationOptions, InputLanguage, IoFormat,
 };
@@ -27,7 +26,7 @@ use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::options::Migrate;
 use crate::migrations::timeout;
-use crate::print;
+use crate::print::{self, Highlight};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Operation<'a> {
@@ -133,14 +132,11 @@ async fn do_migrate(cli: &mut Connection, migrate: &Migrate) -> Result<(), anyho
         };
         if let Some(db_rev) = db_rev {
             if !migrate.quiet {
-                let mut msg = "Database is up to date.".to_string();
-                if print::use_color() {
-                    msg = format!("{}", msg.bold().light_green());
-                }
+                let msg = "Database is up to date.".to_string().emphasized().success();
                 if Some(&db_rev.name) == last_db_rev {
-                    eprintln!("{} Revision {}", msg, db_rev.name);
+                    print::msg!("{} Revision {}", msg, db_rev.name);
                 } else {
-                    eprintln!(
+                    print::msg!(
                         "{} Revision {} is the ancestor of the latest {}",
                         msg,
                         db_rev.name,
@@ -180,22 +176,14 @@ async fn do_migrate(cli: &mut Connection, migrate: &Migrate) -> Result<(), anyho
     let migrations = slice(&migrations, last_db_rev, target_rev.as_ref())?;
     if migrations.is_empty() {
         if !migrate.quiet {
-            if print::use_color() {
-                eprintln!(
-                    "{} Revision {}",
-                    "Everything is up to date.".bold().light_green(),
-                    last_db_rev
-                        .map(|m| &m[..])
-                        .unwrap_or("initial")
-                        .bold()
-                        .white(),
-                );
-            } else {
-                eprintln!(
-                    "Everything is up to date. Revision {}",
-                    last_db_rev.map(|m| &m[..]).unwrap_or("initial"),
-                );
-            }
+            eprintln!(
+                "{} Revision {}",
+                "Everything is up to date.".emphasized().success(),
+                last_db_rev
+                    .map(|m| &m[..])
+                    .unwrap_or("initial")
+                    .emphasized(),
+            );
         }
         return Ok(());
     }
@@ -492,19 +480,12 @@ pub async fn apply_migration(
 ) -> anyhow::Result<()> {
     if verbose {
         let file_name = migration.path.file_name().unwrap();
-        if print::use_color() {
-            eprintln!(
-                "Applying {} ({})",
-                migration.data.id[..].bold().white(),
-                Path::new(file_name).display(),
-            );
-        } else {
-            eprintln!(
-                "Applying {} ({})",
-                migration.data.id,
-                Path::new(file_name).display(),
-            );
-        }
+
+        eprintln!(
+            "Applying {} ({})",
+            migration.data.id[..].emphasized(),
+            Path::new(file_name).display(),
+        );
     }
 
     let data = fs::read_to_string(&migration.path)
@@ -527,11 +508,7 @@ pub async fn apply_migration(
     })?;
 
     if verbose {
-        if print::use_color() {
-            eprintln!("... {}", "applied".bold().green());
-        } else {
-            eprintln!("... applied");
-        }
+        eprintln!("... {}", "applied".emphasized().success());
     }
     Ok(())
 }

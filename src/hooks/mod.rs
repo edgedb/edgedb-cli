@@ -14,7 +14,7 @@ pub async fn on_action(action: &'static str, project: &project::Context) -> anyh
         return Ok(());
     };
 
-    print::msg!("{}", format!("hook {action}: {hook}").fade());
+    print::msg!("{}", format!("hook {action}: {hook}").muted());
 
     // run
     let status = if !cfg!(windows) {

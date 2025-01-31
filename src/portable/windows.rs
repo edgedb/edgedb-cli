@@ -285,7 +285,7 @@ pub fn destroy(options: &destroy::Command, name: &str) -> anyhow::Result<()> {
         }
     }
     if !found {
-        msg!("No instance named {} found", name.emphasize());
+        msg!("No instance named {} found", name.emphasized());
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     Ok(())

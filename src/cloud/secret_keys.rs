@@ -1,5 +1,4 @@
 use anyhow::Context;
-use colorful::Colorful;
 
 use crate::branding::BRANDING_CLOUD;
 use crate::cloud::client::CloudClient;
@@ -147,9 +146,9 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
                 " secret key is printed below. \
                  Be sure to copy and store it securely, as you will \
                  not be able to see it again.\n"
-                    .green()
+                    .success()
             );
-            msg!("{}", sk.emphasize());
+            msg!("{}", sk.emphasized());
         }
     }
 

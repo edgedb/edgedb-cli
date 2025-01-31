@@ -204,9 +204,9 @@ pub fn print_title(title: impl fmt::Display, width: usize) {
     let filler = max(width.saturating_sub(twidth) / 2, 5);
     println!(
         "{} {} {}",
-        format_args!("{0:─^filler$}", "").fade(),
-        title.emphasize(),
-        format_args!("{0:─^filler$}", "").fade(),
+        format_args!("{0:─^filler$}", "").to_string().muted(),
+        title.to_string().emphasized(),
+        format_args!("{0:─^filler$}", "").to_string().muted(),
     );
 }
 

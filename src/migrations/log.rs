@@ -66,6 +66,6 @@ fn print<T>(migrations: &indexmap::IndexMap<String, T>, options: &MigrationLog) 
         }
     }
     if migrations.is_empty() {
-        println!("{}", "<no migrations>".fade());
+        println!("{}", "<no migrations>".muted());
     }
 }

@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::slice::Iter;
 
 use anyhow::Context as _;
-use colorful::Colorful;
 use edgeql_parser::expr;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::schema_file::validate;
@@ -39,7 +38,7 @@ use crate::migrations::squash;
 use crate::migrations::timeout;
 use crate::platform::{is_legacy_schema_file, is_schema_file, tmp_file_name};
 use crate::print::style::Styler;
-use crate::print::{self, AsRelativeToCurrentDir};
+use crate::print::{self, AsRelativeToCurrentDir, Highlight};
 use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
@@ -210,7 +209,7 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
 
 fn print_statements(statements: impl IntoIterator<Item = impl AsRef<str>>) {
     let mut buf: String = String::with_capacity(1024);
-    let styler = Styler::dark_256();
+    let styler = Styler::new();
     for statement in statements {
         buf.truncate(0);
         highlight::edgeql(&mut buf, statement.as_ref(), &styler);
@@ -675,17 +674,15 @@ impl InteractiveMigration<'_> {
                 Err(e) => {
                     if e.is::<QueryError>() {
                         print_query_error(&e, &text, false, "<statement>")?;
-                    } else if print::use_color() {
-                        eprintln!(
-                            "{}: {:#}",
-                            "Error applying statement".bold().light_red(),
-                            e.to_string().bold().white(),
-                        );
                     } else {
-                        eprintln!("Error applying statement: {e:#}");
+                        print::msg!(
+                            "{}: {:#}",
+                            "Error applying statement".emphasized().danger(),
+                            e.to_string().emphasized(),
+                        );
                     }
                     if self.cli.is_consistent() {
-                        eprintln!("Rolling back last operation...");
+                        print::msg!("Rolling back last operation...");
                         self.rollback().await?;
                         return Ok(());
                     } else {
@@ -794,15 +791,11 @@ where
 
     let filepath = filepath.as_relative().display();
     if verbose {
-        if print::use_color() {
-            eprintln!(
-                "{} {}, id: {id}",
-                "Created".bold().light_green(),
-                filepath.to_string().bold().white(),
-            );
-        } else {
-            eprintln!("Created {filepath}, id: {id}");
-        }
+        print::msg!(
+            "{} {}, id: {id}",
+            "Created".emphasized().success(),
+            filepath.to_string().emphasized(),
+        );
     }
     Ok(())
 }

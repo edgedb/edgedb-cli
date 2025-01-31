@@ -204,7 +204,9 @@ where
 pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
     msg!(
         "Setting `server-version = {}` in `{}`",
-        format_args!("{:?}", ver.as_config_value()).emphasize(),
+        format_args!("{:?}", ver.as_config_value())
+            .to_string()
+            .emphasized(),
         config.file_name().unwrap_or_default().to_string_lossy()
     );
     read_modify_write(

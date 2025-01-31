@@ -12,7 +12,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use bigdecimal::BigDecimal;
-use colorful::Colorful;
 use edgeql_parser::helpers::unquote_string;
 use gel_protocol::codec::NamedTupleShape;
 use gel_protocol::model;
@@ -34,6 +33,8 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline::{Context, Helper};
+
+use crate::print::Highlight;
 
 type ParseResult<'a, I = &'a str, R = Value> = IResult<I, R, ParsingError>;
 
@@ -716,14 +717,14 @@ impl Highlighter for VarHelper {
                 let mut str = line[..(line.len() - r.0.len())].to_string();
 
                 // add it back, but with it highlighted red
-                str.push_str(&r.0.light_red().to_string());
+                str.push_str(&r.0.danger().to_string());
                 str.into()
             }
-            Err(_) => line.light_red().to_string().into(),
+            Err(_) => line.danger().to_string().into(),
         }
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        hint.rgb(0x56, 0x56, 0x56).to_string().into()
+        hint.muted().to_string().into()
     }
     fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
         // needed to highlight hint

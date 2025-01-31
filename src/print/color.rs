@@ -1,149 +1,157 @@
-use std::fmt;
+use colorful::core::color_string::CString;
+use colorful::{Color, Colorful};
 
-use colorful::core::ColorInterface;
-use colorful::Color;
+use super::style::Style;
 
-static THEME: once_cell::sync::Lazy<Theme> = once_cell::sync::Lazy::new(|| {
-    if concolor::get(concolor::Stream::Stdout).color() {
+pub trait Highlight: colorful::Colorful + colorful::core::StrMarker + Sized {
+    fn unstyled(self) -> CString {
+        CString::new(self.to_str())
+    }
+
+    fn muted(self) -> CString {
+        if let Some(t) = THEME.as_ref() {
+            self.color(t.muted)
+        } else {
+            CString::new(self)
+        }
+    }
+
+    fn danger(self) -> CString {
+        if let Some(t) = THEME.as_ref() {
+            self.color(t.danger)
+        } else {
+            CString::new(self)
+        }
+    }
+
+    fn success(self) -> CString {
+        if let Some(t) = THEME.as_ref() {
+            self.color(t.success)
+        } else {
+            CString::new(self)
+        }
+    }
+
+    fn warning(self) -> CString {
+        if let Some(t) = THEME.as_ref() {
+            self.color(t.warning)
+        } else {
+            CString::new(self)
+        }
+    }
+
+    fn emphasized(self) -> CString {
+        if THEME.is_some() {
+            self.bold()
+        } else {
+            CString::new(self)
+        }
+    }
+}
+
+impl<T: colorful::Colorful + colorful::core::StrMarker + Sized> Highlight for T {}
+
+static THEME: once_cell::sync::Lazy<Option<Theme>> = once_cell::sync::Lazy::new(|| {
+    if !concolor::get(concolor::Stream::Stdout).color() {
+        return None;
+    }
+
+    let is_term_light = terminal_light::luma().map_or(false, |x| x > 0.6);
+
+    Some(if is_term_light {
         Theme {
-            fade: Some(Style {
-                color: Color::Grey37,
-                bold: false,
-                underline: false,
-            }),
-            err_marker: Some(Style {
-                color: Color::LightRed,
-                bold: true,
-                underline: false,
-            }),
-            emphasize: Some(Style {
-                color: Color::White,
-                bold: true,
-                underline: false,
-            }),
-            command_hint: Some(Style {
-                color: Color::White,
-                bold: true,
-                underline: false,
-            }),
-            title: Some(Style {
-                color: Color::White,
-                bold: true,
-                underline: true,
-            }),
-            deleted: Some(Style {
-                color: Color::Red,
-                bold: false,
-                underline: false,
-            }),
-            added: Some(Style {
-                color: Color::Green,
-                bold: false,
-                underline: false,
-            }),
+            muted: Color::Grey63,
+            danger: Color::DarkRed1,
+            success: Color::DarkGreen,
+            warning: Color::Yellow,
+
+            syntax_string: Color::DarkOliveGreen3a,
+            syntax_set: Color::SteelBlue,
+            syntax_object: Color::Grey37,
+            syntax_link_property: Color::IndianRed1b,
+            syntax_number: Color::CadetBlue1,
+            syntax_boolean: Color::LightSalmon3b,
+            syntax_enum: Color::DarkGoldenrod,
+            syntax_uuid: Color::LightGoldenrod3,
+            syntax_keyword: Color::DarkRed2,
+            syntax_operator: Color::DarkRed2,
+            syntax_comment: Color::Grey35,
+            syntax_cast: Color::DarkRed2,
+            syntax_backslash: Color::DarkRed1,
         }
     } else {
         Theme {
-            fade: None,
-            err_marker: None,
-            emphasize: None,
-            command_hint: None,
-            title: None,
-            deleted: None,
-            added: None,
+            muted: Color::Grey37,
+            danger: Color::LightRed,
+            success: Color::Green,
+            warning: Color::LightYellow,
+
+            syntax_string: Color::DarkOliveGreen3a,
+            syntax_set: Color::SteelBlue,
+            syntax_object: Color::Grey63,
+            syntax_link_property: Color::IndianRed1b,
+            syntax_number: Color::CadetBlue1,
+            syntax_boolean: Color::LightSalmon3b,
+            syntax_enum: Color::DarkGoldenrod,
+            syntax_uuid: Color::LightGoldenrod3,
+            syntax_keyword: Color::IndianRed1b,
+            syntax_operator: Color::IndianRed1b,
+            syntax_comment: Color::Grey66,
+            syntax_cast: Color::IndianRed1b,
+            syntax_backslash: Color::IndianRed1c,
         }
-    }
+    })
 });
 
-#[derive(Clone, Copy)]
-struct Style {
-    color: Color,
-    bold: bool,
-    underline: bool,
-}
-
 struct Theme {
-    fade: Option<Style>,
-    err_marker: Option<Style>,
-    emphasize: Option<Style>,
-    command_hint: Option<Style>,
-    #[allow(dead_code)]
-    title: Option<Style>,
-    added: Option<Style>,
-    deleted: Option<Style>,
+    muted: Color,
+    danger: Color,
+    success: Color,
+    warning: Color,
+
+    syntax_string: Color,
+    syntax_set: Color,
+    syntax_object: Color,
+    syntax_link_property: Color,
+    syntax_number: Color,
+    syntax_boolean: Color,
+    syntax_enum: Color,
+    syntax_uuid: Color,
+    syntax_keyword: Color,
+    syntax_operator: Color,
+    syntax_comment: Color,
+    syntax_cast: Color,
+    syntax_backslash: Color,
 }
 
-pub struct Colored<T> {
-    style: Option<Style>,
-    value: T,
-}
+pub(super) fn apply_syntax_style(style: Style, data: &str) -> CString {
+    if let Some(theme) = super::color::THEME.as_ref() {
+        match style {
+            Style::Comment => data.color(theme.syntax_comment),
+            Style::String => data.color(theme.syntax_string),
+            Style::Set => data.color(theme.syntax_set),
+            Style::Object => data.color(theme.syntax_object),
+            Style::Number => data.color(theme.syntax_number),
+            Style::Boolean => data.color(theme.syntax_boolean),
+            Style::UUID => data.color(theme.syntax_uuid),
+            Style::Enum => data.color(theme.syntax_enum),
+            Style::Cast => data.color(theme.syntax_cast),
+            Style::LinkProperty => data.color(theme.syntax_link_property),
 
-pub trait Highlight: fmt::Display + Sized {
-    fn fade(self) -> Colored<Self> {
-        Colored {
-            style: theme().fade,
-            value: self,
-        }
-    }
-    #[allow(dead_code)]
-    fn title(self) -> Colored<Self> {
-        Colored {
-            style: theme().title,
-            value: self,
-        }
-    }
-    fn err_marker(self) -> Colored<Self> {
-        Colored {
-            style: theme().err_marker,
-            value: self,
-        }
-    }
-    fn emphasize(self) -> Colored<Self> {
-        Colored {
-            style: theme().emphasize,
-            value: self,
-        }
-    }
-    fn command_hint(self) -> Colored<Self> {
-        Colored {
-            style: theme().command_hint,
-            value: self,
-        }
-    }
-    fn deleted(self) -> Colored<Self> {
-        Colored {
-            style: theme().deleted,
-            value: self,
-        }
-    }
-    fn added(self) -> Colored<Self> {
-        Colored {
-            style: theme().added,
-            value: self,
-        }
-    }
-}
+            Style::Keyword => data.color(theme.syntax_keyword),
+            Style::Operator => data.color(theme.syntax_operator),
+            Style::BackslashCommand => data.color(theme.syntax_backslash).bold(),
+            Style::Error => data.color(theme.danger),
 
-fn theme() -> &'static Theme {
-    &THEME
-}
-
-impl<T: fmt::Display> Highlight for &T {}
-
-impl<T: fmt::Display> fmt::Display for Colored<&T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(style) = self.style {
-            write!(
-                f,
-                "\x1B[38;5;{}{}{}m{}\x1B[0m",
-                style.color.to_color_str(),
-                if style.bold { ";1" } else { "" },
-                if style.underline { ";4" } else { "" },
-                self.value
-            )
-        } else {
-            self.value.fmt(f)
+            Style::Decorator
+            | Style::Array
+            | Style::Tuple
+            | Style::TupleField
+            | Style::Pointer
+            | Style::Punctuation => CString::new(data),
         }
+    } else {
+        CString::new(data)
     }
 }
 

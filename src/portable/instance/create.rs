@@ -175,7 +175,7 @@ pub fn run(cmd: &Command, opts: &crate::options::Options) -> anyhow::Result<()> 
         }
     }
 
-    msg!("Instance {} is up and running.", name.emphasize());
+    msg!("Instance {} is up and running.", name.clone().emphasized());
     msg!("To connect to the instance run:");
     msg!("  {BRANDING_CLI_CMD} -I {name}");
     Ok(())
@@ -310,7 +310,7 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
             msg!(
                 "{} Instance {} already exists.",
                 err_marker(),
-                name.emphasize()
+                name.emphasized()
             );
         } else {
             return Ok(inst_name);
@@ -572,6 +572,11 @@ pub fn bootstrap(
         .arg(&ensure_runstate_dir(&info.name)?);
     self_signed_arg(&mut cmd, info.get_version()?);
     cmd.arg("--bootstrap-command").arg(script);
+    if info.get_version()?.specific().major >= 5 {
+        cmd.arg("--default-branch").arg(database);
+    } else {
+        cmd.arg("--default-database").arg(database);
+    }
     cmd.run()?;
 
     let cert_path = tmp_data.join("edbtlscert.pem");

@@ -127,7 +127,7 @@ pub fn update_toml(
         msg!(
             "Run {} {} to initialize an instance.",
             BRANDING_CLI_CMD,
-            " project init".command_hint()
+            " project init".emphasized()
         );
     } else {
         let name = project::instance_name(&stash_dir)?;
@@ -167,7 +167,11 @@ pub fn update_toml(
                 msg!("Canceled.");
             }
             upgrade::UpgradeAction::None => {
-                msg!("Already up to date.\nRequested upgrade version is {} current instance version is {}", result.requested_version.emphasize().to_string() + ",", result.prior_version.emphasize().to_string() + ".");
+                msg!(
+                    "Already up to date.\nRequested upgrade version is {}, current instance version is {}.",
+                    result.requested_version.to_string().emphasized(),
+                    result.prior_version.to_string().emphasized()
+                );
             }
         }
     };
@@ -257,7 +261,10 @@ pub fn upgrade_instance(cmd: &Command, opts: &crate::options::Options) -> anyhow
                     .to_string_lossy()
             );
             if let Some(available) = result.available_upgrade {
-                msg!("New major version is available: {}", available.emphasize());
+                msg!(
+                    "New major version is available: {}",
+                    available.to_string().emphasized()
+                );
                 msg!(
                     "To update `{}` and upgrade to this version, \
                         run:\n    {} project upgrade --to-latest",
@@ -366,7 +373,7 @@ fn upgrade_cloud(
     let result = upgrade::upgrade_cloud(org, name, to_version, &client, cmd.force, |target_ver| {
         let target_ver_str = target_ver.to_string();
         let _inst_name = format!("{org}/{name}");
-        let inst_name = _inst_name.emphasize();
+        let inst_name = _inst_name.emphasized();
         if !cmd.non_interactive {
             question::Confirm::new(format!(
                 "This will upgrade {inst_name} to version {target_ver_str}.\
@@ -381,9 +388,9 @@ fn upgrade_cloud(
     if let upgrade::UpgradeAction::Upgraded = result.action {
         let inst_name = format!("{org}/{name}");
         msg!(
-            "Instance {} has been successfully upgraded to {}",
-            inst_name.emphasize(),
-            result.requested_version.emphasize().to_string() + "."
+            "Instance {} has been successfully upgraded to {}.",
+            inst_name.emphasized(),
+            result.requested_version.to_string().emphasized(),
         );
     }
 

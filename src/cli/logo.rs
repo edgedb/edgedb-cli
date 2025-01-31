@@ -33,13 +33,25 @@ pub fn print_logo(allow_animation: bool, small: bool) {
         .max()
         .unwrap();
 
+    let is_light = terminal_light::luma().map_or(false, |x| x > 0.6);
+    let primary = if is_light {
+        Color::DarkMagenta
+    } else {
+        Color::Magenta
+    };
+    let secondary = if is_light {
+        Color::DarkYellow
+    } else {
+        Color::Yellow
+    };
+
     let normal = |c| {
         write_ansi!(ResetAttributes);
         write_ansi!(SetAttribute(Attribute::Bold));
         if c == '$' || c == '█' || c == '▄' || c == '▀' {
-            write_ansi!(SetForegroundColor(Color::Magenta));
+            write_ansi!(SetForegroundColor(primary));
         } else {
-            write_ansi!(SetForegroundColor(Color::Yellow));
+            write_ansi!(SetForegroundColor(secondary));
         }
         write_ansi!(SetAttribute(Attribute::Bold));
     };

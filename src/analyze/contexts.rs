@@ -149,7 +149,7 @@ pub fn print(explain: &Analysis) {
 
 fn print_buffer(buffer: &Buffer, title: impl fmt::Display) {
     let mut markup = String::with_capacity(buffer.text.len());
-    let styler = Styler::dark_256();
+    let styler = Styler::new();
     highlight::edgeql(&mut markup, &buffer.text, &styler);
 
     let mut out = String::with_capacity(markup.len());

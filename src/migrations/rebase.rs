@@ -7,9 +7,8 @@ use crate::migrations::create::{MigrationKey, MigrationToText};
 use crate::migrations::db_migration::{read_all, DBMigration};
 use crate::migrations::migration::MigrationFile;
 use crate::migrations::{create, migrate, migration, Context};
-use crate::print;
+use crate::print::{self, Highlight};
 use anyhow::Context as _;
-use colorful::Colorful;
 use indexmap::IndexMap;
 
 #[derive(PartialEq)]
@@ -69,7 +68,7 @@ impl RebaseMigrations {
             .last()
             .map(|v| v.0.as_str())
             .unwrap_or("initial")
-            .green();
+            .success();
 
         let format_migration_on_length = |c: usize| {
             if c > 1 {
@@ -82,9 +81,9 @@ impl RebaseMigrations {
         eprintln!("Last common migration is {last_common}");
         eprintln!(
             "Since then, there are:\n- {} new {} on the target branch,\n- {} {} to rebase",
-            self.target_migrations.len().to_string().green(),
+            self.target_migrations.len().to_string().success(),
             format_migration_on_length(self.target_migrations.len()),
-            self.source_migrations.len().to_string().green(),
+            self.source_migrations.len().to_string().success(),
             format_migration_on_length(self.source_migrations.len())
         );
     }

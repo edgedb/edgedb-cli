@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use anyhow::Context;
 use bytes::BytesMut;
-use colorful::Colorful;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot;
 
@@ -175,9 +174,13 @@ impl State {
     fn print_banner(&self, version: &ver::Build) -> anyhow::Result<()> {
         msg!(
             "{} {} {}",
-            format!("{}\r{BRANDING}", ansi_escapes::EraseLine).light_gray(),
-            version.to_string().light_gray(),
-            format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade()
+            format!("{}\r{BRANDING}", ansi_escapes::EraseLine)
+                .muted()
+                .emphasized(),
+            version.to_string().muted(),
+            format_args!("(repl {})", env!("CARGO_PKG_VERSION"))
+                .to_string()
+                .muted()
         );
         Ok(())
     }

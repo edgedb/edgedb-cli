@@ -3,8 +3,6 @@ use std::str;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::emit;
-use colorful::core::color_string::CString;
-use colorful::Colorful;
 use const_format::concatcp;
 use gel_protocol::annotations::Warning;
 use termcolor::{ColorChoice, StandardStream};
@@ -12,7 +10,7 @@ use termcolor::{ColorChoice, StandardStream};
 use gel_errors::{Error, InternalServerError};
 
 use crate::branding::BRANDING_CLI_CMD;
-use crate::print::{self, msg};
+use crate::print::{self, msg, Highlight};
 
 pub fn print_query_error(
     err: &Error,
@@ -112,12 +110,9 @@ pub fn print_query_warning(
 }
 
 fn print_query_warning_plain(warning: &Warning) {
-    let marker = concatcp!(BRANDING_CLI_CMD, " warning:");
-    let marker = if print::use_color() {
-        marker.bold().yellow()
-    } else {
-        CString::new(marker)
-    };
+    let marker = concatcp!(BRANDING_CLI_CMD, " warning:")
+        .emphasized()
+        .warning();
 
     msg!("{marker} {warning}");
 }

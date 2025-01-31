@@ -38,7 +38,10 @@ pub fn run(options: &Command, opts: &Options) -> anyhow::Result<()> {
         }
     })?;
     if !options.quiet {
-        msg!("Instance {} is successfully deleted.", name_str.emphasize());
+        msg!(
+            "Instance {} is successfully deleted.",
+            name_str.emphasized()
+        );
     }
     Ok(())
 }

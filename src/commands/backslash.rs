@@ -578,7 +578,7 @@ pub async fn execute(
 
     let options = Options {
         command_line: false,
-        styler: Some(Styler::dark_256()),
+        styler: Some(Styler::new()),
         conn_params: prompt.conn_params.clone(),
     };
     match cmd {

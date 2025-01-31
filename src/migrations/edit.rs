@@ -56,12 +56,12 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
             }
             Chunk::Insert(block) => {
                 for line in block.split('\n') {
-                    println!("+{}", line.added());
+                    println!("+{}", line.success());
                 }
             }
             Chunk::Delete(block) => {
                 for line in block.split('\n') {
-                    println!("-{}", line.deleted());
+                    println!("-{}", line.danger());
                 }
             }
         }
@@ -100,9 +100,9 @@ pub async fn edit_no_check(
         }
         fs::write(&tmp_file, migration.replace_id(&text, &new_id)).await?;
         fs::rename(&tmp_file, &path).await?;
-        msg!("Updated migration id to {}", new_id.emphasize());
+        msg!("Updated migration id to {}", new_id.emphasized());
     } else {
-        msg!("Id {} is already correct.", migration.id.emphasize());
+        msg!("Id {} is already correct.", migration.id.emphasized());
     }
     Ok(())
 }
@@ -170,9 +170,9 @@ async fn _edit(
                 anyhow::Ok(())
             })
             .await?;
-            msg!("Updated migration id to {}", new_id.emphasize());
+            msg!("Updated migration id to {}", new_id.emphasized());
         } else {
-            msg!("Id {} is already correct.", migration.id.emphasize());
+            msg!("Id {} is already correct.", migration.id.emphasized());
         }
     } else {
         let temp_path = path.parent().unwrap().join(format!(".editing.{n}.edgeql"));
@@ -271,9 +271,9 @@ async fn _edit(
             if migration.id != new_id {
                 new_data = migration.replace_id(&new_data, &new_id);
                 fs::write(&temp_path, &new_data).await?;
-                msg!("Updated migration id to {}", new_id.emphasize());
+                msg!("Updated migration id to {}", new_id.emphasized());
             } else {
-                msg!("Id {} is already correct.", migration.id.emphasize());
+                msg!("Id {} is already correct.", migration.id.emphasized());
             }
             match check_migration(cli, &new_data, &path).await {
                 Ok(()) => {}
