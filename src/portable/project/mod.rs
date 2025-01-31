@@ -359,6 +359,10 @@ pub async fn load_ctx_at(location: Location) -> anyhow::Result<Context> {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn ensure_ctx(override_dir: Option<&Path>) -> anyhow::Result<Context> {
+    ensure_ctx_async(override_dir).await
+}
+
+pub async fn ensure_ctx_async(override_dir: Option<&Path>) -> anyhow::Result<Context> {
     let Some(ctx) = load_ctx(override_dir).await? else {
         return Err(anyhow::anyhow!("`{MANIFEST_FILE_DISPLAY_NAME}` not found, unable to perform this action without an initialized project."));
     };

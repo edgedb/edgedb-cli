@@ -15,14 +15,11 @@ use crate::portable::project;
 use crate::print::AsRelativeToCurrentDir;
 use crate::watch::WatchCommand;
 
-pub fn run(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .thread_name("watch")
-        .enable_all()
-        .build()?;
-    let project = project::ensure_ctx(None)?;
+#[tokio::main(flavor = "current_thread")]
+pub async fn run(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
+    let project = project::ensure_ctx_async(None).await?;
     let mut ctx = WatchContext {
-        connector: options.block_on_create_connector()?,
+        connector: options.create_connector().await?,
         migration: migrations::Context::for_project(project)?,
         last_error: false,
     };
@@ -35,7 +32,7 @@ pub fn run(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
     watcher.watch(&ctx.project().location.root, RecursiveMode::NonRecursive)?;
     watcher.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
 
-    runtime.block_on(ctx.do_update())?;
+    ctx.do_update().await?;
 
     eprintln!("{BRANDING} Watch initialized.");
     eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
@@ -43,21 +40,23 @@ pub fn run(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         "Monitoring {}",
         ctx.project().location.root.as_relative().display()
     );
-    runtime.block_on(async {
-        let mut retry_timeout = None::<Duration>;
-        while watcher.wait(retry_timeout).await.is_ok() {
-            if let Err(e) = ctx.do_update().await {
-                log::error!("Error updating database: {e:#}. Will retry in 10s.");
-                retry_timeout = Some(Duration::from_secs(10));
-            } else {
-                retry_timeout = None;
-            }
+
+    let mut retry_timeout = None::<Duration>;
+    while watcher.wait(retry_timeout).await.is_ok() {
+        if let Err(e) = ctx.do_update().await {
+            log::error!("Error updating database: {e:#}. Will retry in 10s.");
+            retry_timeout = Some(Duration::from_secs(10));
+        } else {
+            retry_timeout = None;
         }
-    });
-    runtime
-        .block_on(ctx.try_connect_and_clear_error())
-        .map_err(|e| log::error!("Cannot clear error: {:#}", e))
-        .ok();
+    }
+
+    // clear error
+    let res = ctx.try_connect_and_clear_error().await;
+    if let Err(e) = res {
+        log::error!("Cannot clear error: {:#}", e);
+    }
+
     Ok(())
 }
 
