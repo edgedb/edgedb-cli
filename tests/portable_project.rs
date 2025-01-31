@@ -241,6 +241,11 @@ fn project_link_and_init() {
 #[test]
 #[cfg(not(target_os = "windows"))]
 fn hooks() {
+    use std::{fs, path};
+
+    let branch_log_file = path::Path::new("tests/proj/project3/branch.log");
+    fs::remove_file(branch_log_file).ok();
+
     Command::new("edgedb")
         .arg("--version")
         .assert()
@@ -252,7 +257,7 @@ fn hooks() {
         .arg("instance")
         .arg("create")
         .arg("inst2")
-        // .arg("default-branch-name") defaults to main
+        .arg("default-branch-name")
         .arg("--non-interactive")
         .assert()
         .context("instance-create", "")
@@ -290,11 +295,14 @@ fn hooks() {
             expected: &["branch.switch.before", "branch.switch.after"],
         });
 
+    let branch_log = fs::read_to_string(branch_log_file).unwrap();
+    assert_eq!(branch_log, "another\n");
+
     Command::new("edgedb")
         .current_dir("tests/proj/project3")
         .arg("branch")
         .arg("merge")
-        .arg("main")
+        .arg("default-branch-name")
         .assert()
         .context("branch-merge", "")
         .success()
@@ -314,6 +322,21 @@ fn hooks() {
         .stderr(ContainsHooks {
             expected: &["branch.wipe.before", "branch.wipe.after"],
         });
+
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("branch")
+        .arg("switch")
+        .arg("default-branch-name")
+        .assert()
+        .context("branch-switch-2", "")
+        .success()
+        .stderr(ContainsHooks {
+            expected: &["branch.switch.before", "branch.switch.after"],
+        });
+
+    let branch_log = fs::read_to_string(branch_log_file).unwrap();
+    assert_eq!(branch_log, "another\ndefault-branch-name\n");
 }
 
 #[derive(Debug)]
