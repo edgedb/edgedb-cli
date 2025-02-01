@@ -45,6 +45,7 @@ pub enum OutputFormat {
     JsonPretty,
     JsonLines,
     TabSeparated,
+    Tabular,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -90,6 +91,7 @@ pub struct State {
     pub input_language: InputLanguage,
     pub input_mode: InputMode,
     pub output_format: OutputFormat,
+    pub sql_output_format: OutputFormat,
     pub display_typenames: bool,
     pub print_stats: PrintStats,
     pub history_limit: usize,
@@ -453,7 +455,9 @@ impl std::str::FromStr for OutputFormat {
 impl From<OutputFormat> for IoFormat {
     fn from(val: OutputFormat) -> Self {
         match val {
-            OutputFormat::Default | OutputFormat::TabSeparated => IoFormat::Binary,
+            OutputFormat::Default | OutputFormat::TabSeparated | OutputFormat::Tabular => {
+                IoFormat::Binary
+            }
             OutputFormat::JsonLines | OutputFormat::JsonPretty => IoFormat::JsonElements,
             OutputFormat::Json => IoFormat::Json,
         }
@@ -501,6 +505,7 @@ impl OutputFormat {
             JsonPretty => "json-pretty",
             JsonLines => "json-lines",
             TabSeparated => "tab-separated",
+            Tabular => "tabular",
         }
     }
 }

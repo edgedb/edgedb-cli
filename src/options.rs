@@ -465,6 +465,7 @@ pub struct Options {
     pub debug_print_codecs: bool,
     pub input_language: Option<InputLanguage>,
     pub output_format: Option<OutputFormat>,
+    pub sql_output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
     pub test_output_conn_params: bool,
 }
@@ -853,6 +854,7 @@ impl Options {
             } else {
                 None
             },
+            sql_output_format: None,
             no_cli_update_check,
             test_output_conn_params: args.test_output_conn_params,
         })

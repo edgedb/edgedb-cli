@@ -30,10 +30,13 @@ use gel_errors::display::display_error;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
-use buffer::{Delim, Exception, UnwrapExc, WrapErr};
+use buffer::{Delim, Exception, UnwrapExc, UnwrapInfallible, WrapErr};
 use formatter::Formatter;
 use native::FormatExt;
 use stream::Output;
+
+use crate::table::{self, Cell, Row, Table};
+use gel_protocol::value::Value;
 
 #[derive(Snafu, Debug)]
 #[snafu(context(suffix(false)))]
@@ -224,6 +227,181 @@ where
         .unwrap_or_else(|| terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(80));
     let colors = config.colors.unwrap_or_else(|| io::stdout().is_terminal());
     _native_format(rows, config, w, colors, Stdout {}).await
+}
+
+fn get_printer_string(prn: &mut Printer<&mut String>) -> String {
+    prn.commit().unwrap_exc().unwrap_infallible();
+    prn.flush_buf().unwrap_exc().unwrap_infallible();
+    let mut s = String::new();
+    std::mem::swap(prn.stream, &mut s);
+    s
+}
+
+fn is_numeric(v: &Value) -> bool {
+    matches!(
+        v,
+        Value::Int16(_)
+            | Value::Int32(_)
+            | Value::Int64(_)
+            | Value::Float32(_)
+            | Value::Float64(_)
+            | Value::BigInt(_)
+            | Value::Decimal(_)
+    )
+}
+
+fn to_cell(prn: &mut Printer<&mut String>, v: &Option<Value>) -> table::Cell {
+    match v {
+        Some(vi) => vi.format(prn).unwrap_exc().unwrap_infallible(),
+        None => {}
+    };
+    let mut cell = Cell::new(&get_printer_string(prn));
+    // Right justify numbers.
+    match v {
+        Some(vi) if is_numeric(vi) => {
+            cell = cell.style_spec("r");
+        }
+        _ => {}
+    }
+    cell
+}
+
+async fn format_table_rows<S, I, E>(
+    // We use a Printer to do the formatting, and it needs to be a string
+    prn: &mut Printer<&mut String>,
+    rows: &mut S,
+) -> Result<table::Table, E>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt + Into<Value>,
+    E: fmt::Debug + Error + 'static,
+{
+    let mut counter: usize = 0;
+
+    let mut table = Table::new();
+    table.set_format(*table::FORMAT);
+
+    let mut title_row = Vec::new();
+    let mut titles_set = false;
+    while let Some(v) = rows.next().await.transpose()? {
+        counter += 1;
+        if let Some(limit) = prn.max_items {
+            if counter > limit {
+                table.add_row(Row::new(vec![Cell::new("...")]));
+                // consume extra items if any
+                while rows.next().await.transpose()?.is_some() {}
+                break;
+            }
+        }
+
+        let mut table_row = Vec::new();
+        let v: Value = v.into();
+        match &v {
+            Value::SQLRow { shape, fields } => {
+                for (s, vi) in shape.elements.iter().zip(fields) {
+                    if !titles_set {
+                        title_row.push(table::header_cell(&s.name));
+                    }
+
+                    table_row.push(to_cell(prn, vi));
+                }
+            }
+            Value::Object { shape, fields } => {
+                for (s, vi) in shape.elements.iter().zip(fields) {
+                    if !titles_set {
+                        title_row.push(table::header_cell(&s.name));
+                    }
+
+                    table_row.push(to_cell(prn, vi));
+                }
+            }
+            // Q: Should we do NamedTuple and Tuple also?
+            _ => {
+                table_row.push(to_cell(prn, &Some(v)));
+            }
+        }
+
+        if !titles_set && !title_row.is_empty() {
+            table.set_titles(Row::new(title_row.clone()));
+            titles_set = true;
+        }
+
+        table.add_row(Row::new(table_row));
+    }
+
+    Ok(table)
+}
+
+async fn _table_format<S, I, E>(
+    mut rows: S,
+    config: &Config,
+    _max_width: usize,
+    _colors: bool,
+) -> Result<table::Table, E>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt + Into<Value>,
+    E: fmt::Debug + Error + 'static,
+{
+    // This is kind of hacky, but for ~performance~ and to avoid
+    // needing to pass around enough config info to recreate new ones,
+    // we repeatedly invoke a single Printer and then pull the strings
+    // out and put them in a table we are building.
+    let mut buf = String::new();
+    let mut prn = Printer {
+        // We don't use colors yet because the table library gets
+        // confused.
+        colors: false,
+        indent: config.indent,
+        expand_strings: config.expand_strings,
+        max_width: usize::MAX,
+        implicit_properties: config.implicit_properties,
+        max_items: config.max_items,
+        max_vector_length: config.max_vector_length,
+        trailing_comma: false,
+
+        buffer: String::with_capacity(128),
+        stream: &mut buf,
+        delim: Delim::None,
+        flow: false,
+        committed: 0,
+        committed_indent: 0,
+        committed_column: 0,
+        column: 0,
+        cur_indent: 0,
+
+        styler: config.styler.clone(),
+    };
+
+    let table = format_table_rows(&mut prn, &mut rows).await?;
+
+    Ok(table)
+}
+
+pub async fn table_to_stdout<S, I, E>(
+    rows: S,
+    config: &Config,
+) -> Result<(), PrintError<E, io::Error>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt + Into<Value>,
+    E: fmt::Debug + Error + 'static,
+{
+    let w = config
+        .max_width
+        .unwrap_or_else(|| terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(80));
+    let colors = config.colors.unwrap_or_else(|| io::stdout().is_terminal());
+    let table = _table_format(rows, config, w, colors)
+        .await
+        .map_err(|e| PrintError::StreamErr { source: e })?;
+
+    // TODO: We allegedly (per our type signature, and by analogy with
+    // native_to_stdout), should return a PrintErr if this write
+    // fails. But prettytable makes that kind of annoying (we'd need
+    // to pull in another dependency to do it!), so we don't.
+    // Also, who cares.
+    table.printstd();
+    Ok(())
 }
 
 async fn _native_format<S, I, E, O>(

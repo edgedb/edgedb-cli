@@ -130,6 +130,10 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
             .output_format
             .or(cfg.shell.output_format)
             .unwrap_or(repl::OutputFormat::Default),
+        sql_output_format: options
+            .sql_output_format
+            .or(cfg.shell.sql_output_format)
+            .unwrap_or(repl::OutputFormat::Tabular),
         display_typenames: cfg.shell.display_typenames.unwrap_or(true),
         input_mode: cfg.shell.input_mode.unwrap_or(repl::InputMode::Emacs),
         print_stats: cfg.shell.print_stats.unwrap_or(repl::PrintStats::Off),
@@ -277,6 +281,12 @@ async fn execute_query(
     use crate::repl::PrintStats::*;
 
     let cli = state.connection.as_mut().expect("connection established");
+
+    let output_format = match state.input_language {
+        repl::InputLanguage::EdgeQl => state.output_format,
+        repl::InputLanguage::Sql => state.sql_output_format,
+    };
+
     let flags = CompilationOptions {
         implicit_limit: state.implicit_limit.map(|x| (x + 1) as u64),
         implicit_typenames: state.display_typenames && cli.protocol().supports_inline_typenames(),
@@ -284,7 +294,7 @@ async fn execute_query(
         explicit_objectids: true,
         allow_capabilities: Capabilities::ALL,
         input_language: state.input_language.into(),
-        io_format: state.output_format.into(),
+        io_format: output_format.into(),
         expected_cardinality: Cardinality::Many,
     };
 
@@ -373,7 +383,7 @@ async fn execute_query(
         // update max_width each time
         cfg.max_width(w.into());
     }
-    match state.output_format {
+    match output_format {
         TabSeparated => {
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
@@ -407,6 +417,24 @@ async fn execute_query(
                 write_out(&text).await?;
                 index += 1;
             }
+        }
+        Tabular => {
+            match print::table_to_stdout(&mut items, &cfg).await {
+                Ok(()) => {}
+                Err(e) => {
+                    match e {
+                        PrintError::StreamErr {
+                            source: ref error, ..
+                        } => {
+                            print_query_error(error, statement, state.verbose_errors, "<query>")?;
+                        }
+                        _ => eprintln!("{e:#?}"),
+                    }
+                    state.last_error = Some(e.into());
+                    return Err(QueryError)?;
+                }
+            }
+            return Err(QueryError)?;
         }
         Default => {
             match print::native_to_stdout(&mut items, &cfg).await {

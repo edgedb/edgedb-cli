@@ -404,7 +404,7 @@ fn do_init(
     let handle = project::Handle {
         name: name.into(),
         project_dir: project.location.root.clone(),
-        schema_dir: project.resolve_schema_dir()?.into(),
+        schema_dir: project.resolve_schema_dir()?,
         instance,
         database: options.database.clone(),
     };
@@ -453,7 +453,7 @@ fn do_cloud_init(
     let handle = project::Handle {
         name: full_name.clone(),
         project_dir: project.location.root.clone(),
-        schema_dir: project.resolve_schema_dir()?.into(),
+        schema_dir: project.resolve_schema_dir()?,
         instance: project::InstanceKind::Remote,
         database: Some(database.to_owned()),
     };

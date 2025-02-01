@@ -35,6 +35,8 @@ pub struct ShellConfig {
     pub input_language: Option<repl::InputLanguage>,
     #[serde(with = "serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
+    #[serde(with = "serde_str::opt", default)]
+    pub sql_output_format: Option<repl::OutputFormat>,
     #[serde(default)]
     pub display_typenames: Option<bool>,
     #[serde(with = "serde_str::opt", default)]
