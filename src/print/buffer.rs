@@ -28,7 +28,6 @@ pub(in crate::print) enum Delim {
     Field,
 }
 
-
 pub trait UnwrapInfallible<T>: Sized {
     fn unwrap_infallible(self) -> T;
 }

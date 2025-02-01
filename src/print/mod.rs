@@ -229,8 +229,7 @@ where
     _native_format(rows, config, w, colors, Stdout {}).await
 }
 
-fn get_printer_string(prn: &mut Printer<&mut String>) -> String
-{
+fn get_printer_string(prn: &mut Printer<&mut String>) -> String {
     prn.commit().unwrap_exc().unwrap_infallible();
     prn.flush_buf().unwrap_exc().unwrap_infallible();
     let mut s = String::new();
@@ -251,11 +250,7 @@ fn is_numeric(v: &Value) -> bool {
     )
 }
 
-fn to_cell(
-    prn: &mut Printer<&mut String>,
-    v: &Option<Value>,
-) -> table::Cell
-{
+fn to_cell(prn: &mut Printer<&mut String>, v: &Option<Value>) -> table::Cell {
     match v {
         Some(vi) => vi.format(prn).unwrap_exc().unwrap_infallible(),
         None => {}
@@ -396,8 +391,9 @@ where
         .max_width
         .unwrap_or_else(|| terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(80));
     let colors = config.colors.unwrap_or_else(|| io::stdout().is_terminal());
-    let table = _table_format(rows, config, w, colors).await.map_err(
-        |e| PrintError::StreamErr {source: e})?;
+    let table = _table_format(rows, config, w, colors)
+        .await
+        .map_err(|e| PrintError::StreamErr { source: e })?;
 
     // TODO: We allegedly (per our type signature, and by analogy with
     // native_to_stdout), should return a PrintErr if this write
