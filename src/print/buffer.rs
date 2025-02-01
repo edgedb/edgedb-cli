@@ -28,10 +28,16 @@ pub(in crate::print) enum Delim {
     Field,
 }
 
-pub fn fix_infallible<T>(err: Exception<Infallible>) -> Exception<T> {
-    match err {
-        Exception::DisableFlow => Exception::DisableFlow,
-        Exception::Error(e) => match e {},
+
+pub trait UnwrapInfallible<T>: Sized {
+    fn unwrap_infallible(self) -> T;
+}
+impl<T> UnwrapInfallible<T> for std::result::Result<T, Infallible> {
+    fn unwrap_infallible(self) -> T {
+        match self {
+            Ok(v) => v,
+            Err(i) => match i {},
+        }
     }
 }
 
