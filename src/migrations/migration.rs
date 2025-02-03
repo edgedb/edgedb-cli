@@ -6,14 +6,12 @@ use anyhow::Context as _;
 use edgeql_parser::hash::{self, Hasher};
 use fn_error_context::context;
 use indexmap::IndexMap;
-use regex::Regex;
 use tokio::fs;
 use tokio::io;
 
 use crate::migrations::context::Context;
 use crate::migrations::grammar::parse_migration;
 use crate::migrations::NULL_MIGRATION;
-use crate::print;
 
 #[derive(Debug)]
 pub struct Migration {
@@ -119,9 +117,6 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         Err(e) => Err(e)?,
     };
     let mut result = Vec::new();
-    let old_name_re = Regex::new(r"^\d{5}\.edgeql$")?;
-
-    let mut has_old_filename = false;
 
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
@@ -133,15 +128,7 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
             continue;
         }
 
-        if !has_old_filename && old_name_re.is_match(&lossy_name) {
-            has_old_filename = true;
-        }
-
         result.push(item.path());
-    }
-
-    if has_old_filename {
-        print::warn!("Legacy migration file names detected, consider running 'edgedb migration upgrade-format'")
     }
 
     Ok(result)
