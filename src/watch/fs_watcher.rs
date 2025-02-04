@@ -41,19 +41,25 @@ impl FsWatcher {
         }
     }
 
+    /// Wait for changes in fs and debounce many consequent writes into a single write.
     async fn wait_for_changes(&mut self) -> HashSet<PathBuf> {
         let mut changed_paths = HashSet::new();
 
         let mut timeout = None;
         loop {
             tokio::select! {
+                // when timeout runs out, return set of changed paths
                 _ = wait_for_timeout(timeout) => { return changed_paths },
+
+                // on new changed path
                 paths = self.rx.recv() => {
+                    // record the paths
                     if let Some(paths) = paths {
                         changed_paths.extend(paths);
                     } else {
                         return changed_paths;
                     }
+                    // refresh the timeout
                     if changed_paths.is_empty() {
                         timeout = None;
                     } else {
