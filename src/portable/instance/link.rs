@@ -85,7 +85,7 @@ pub fn run(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let ver = get_server_version(&mut connection)?;
 
     if !has_branch && opts.conn_options.branch.is_none() && opts.conn_options.database.is_none() {
-        config = config.with_database(&get_default_branch(&mut connection)?)?;
+        config = config.with_database(&get_current_branch(&mut connection)?)?;
 
         eprintln!(
             "using the default {} '{}'",
@@ -95,7 +95,15 @@ pub fn run(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 "database"
             },
             config.database()
-        )
+        );
+
+        if ver.specific().major >= 5 {
+            creds.branch = Some(config.database().to_string());
+            creds.database = None;
+        } else {
+            creds.database = Some(config.database().to_string());
+            creds.branch = None;
+        }
     }
 
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
@@ -349,19 +357,19 @@ async fn get_server_version(connection: &mut Client) -> anyhow::Result<Build> {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
-    let default_branch = connection
+async fn get_current_branch(connection: &mut Client) -> anyhow::Result<String> {
+    let branch = connection
         .query_required_single::<String, _>("select sys::get_current_database()", &())
         .await;
 
     // for context why '?' isn't used, tokio swallows the error here and prints:
     // "edgedb error: ClientConnectionError: A Tokio 1.x context was found, but it is being shutdown."
     // whereas this ensures that the result is properly handled and the actual error is reported.
-    if let Ok(branch) = default_branch {
+    if let Ok(branch) = branch {
         return Ok(branch);
     }
 
-    anyhow::bail!(default_branch.unwrap_err());
+    anyhow::bail!(branch.unwrap_err());
 }
 
 async fn prompt_conn_params(
