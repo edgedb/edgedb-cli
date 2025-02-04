@@ -1,7 +1,6 @@
 use gel_tokio::get_stash_path;
 
 use crate::branding::BRANDING_CLOUD;
-use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
 use crate::platform::tmp_file_path;
@@ -31,7 +30,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub async fn new(options: &Options) -> anyhow::Result<Context> {
+    pub async fn new(instance_arg: Option<&InstanceName>) -> anyhow::Result<Context> {
         let mut ctx = Context {
             instance_name: None,
             current_branch: None,
@@ -40,8 +39,7 @@ impl Context {
         };
 
         // use instance name provided with --instance
-        let instance_name = options.conn_params.get()?.instance_name();
-        ctx.instance_name = instance_name.map(|n| n.clone().into());
+        ctx.instance_name = instance_arg.cloned();
         if let Some(instance_name) = &ctx.instance_name {
             let instance_name = ensure_local_instance(instance_name)?;
 
@@ -131,7 +129,7 @@ fn ensure_local_instance(instance_name: &InstanceName) -> anyhow::Result<&str> {
         InstanceName::Cloud { .. } => {
             // should never occur because of the above check
             Err(anyhow::anyhow!(
-                "cannot use branches on {BRANDING_CLOUD} instance unless it is linked to a project"
+                "cannot use branches on {BRANDING_CLOUD} instance unless linked to a project"
             ))
         }
     }

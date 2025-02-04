@@ -111,12 +111,12 @@ pub async fn common(
                 commands::database::drop(cli, d, options).await?;
             }
             DatabaseCmd::Wipe(w) => {
-                commands::database::wipe(cli, w, options).await?;
+                commands::database::wipe(cli, w).await?;
             }
         },
         Branching(cmd) => {
             let cmd = branch::Subcommand::from(cmd.subcommand.clone());
-            return branch::do_run(&cmd, options, Some(cli)).await;
+            return branch::do_run(&cmd, options, Some(cli), None).await;
         }
         Migrate(params) => {
             migrations::migrate(cli, options, params).await?;

@@ -15,18 +15,20 @@ use crate::commands::parser::BranchingCmd;
 use crate::commands::Options;
 use crate::connect::{Connection, Connector};
 use crate::options::ConnectionOptions;
+use crate::portable;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<CommandResult> {
-    do_run(&cmd.subcommand, options, None).await
+    do_run(&cmd.subcommand, options, None, cmd.conn.instance.as_ref()).await
 }
 
 pub async fn do_run(
     cmd: &Subcommand,
     options: &Options,
     connection: Option<&mut Connection>,
+    instance_arg: Option<&portable::options::InstanceName>,
 ) -> anyhow::Result<CommandResult> {
-    let context = context::Context::new(options).await?;
+    let context = context::Context::new(instance_arg).await?;
 
     let mut connector: Connector = options.conn_params.clone();
 
