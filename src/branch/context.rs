@@ -1,4 +1,4 @@
-use gel_tokio::{get_project_path, get_stash_path};
+use gel_tokio::get_stash_path;
 
 use crate::branding::BRANDING_CLOUD;
 use crate::commands::Options;
@@ -8,12 +8,15 @@ use crate::platform::tmp_file_path;
 use crate::portable::options::InstanceName;
 use crate::portable::project;
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 pub struct Context {
     /// Instance name provided either with --instance or inferred from the project.
     instance_name: Option<InstanceName>,
+
+    /// Project location if --instance was not specified and
+    /// current directory is within a project.
+    project: Option<project::Location>,
 
     /// None means that the current branch is unknown because:
     /// - the instance uses the default branch (and we cannot know what
@@ -23,65 +26,42 @@ pub struct Context {
     ///   - the project has no linked instance.
     current_branch: Option<String>,
 
-    /// Project dir if it was resolved by instance_name or current directory
-    project_dir: Option<PathBuf>,
-
     /// Project manifest cache
     manifest_cache: Mutex<Option<Option<project::Context>>>,
 }
 
 impl Context {
     pub async fn new(options: &Options) -> anyhow::Result<Context> {
+        let mut ctx = Context {
+            instance_name: None,
+            current_branch: None,
+            project: None,
+            manifest_cache: Mutex::new(None),
+        };
+
         // use instance name provided with --instance
         let instance_name = options.conn_params.get()?.instance_name();
-        let mut instance_name: Option<InstanceName> = instance_name.map(|n| n.clone().into());
-        let project_file = get_project_path(None, true).await?;
-        let project_dir = project_file.as_ref().map(|p| p.parent().unwrap());
-        let mut branch: Option<String> = None;
-
-        if instance_name.is_none() {
-            instance_name = if let Some(project_dir) = project_dir.as_ref() {
-                let stash_dir = get_stash_path(project_dir)?;
-                project::instance_name(&stash_dir).ok()
-            } else {
-                None
-            };
-        }
-
-        // read from credentials
-        if project_dir.is_some()
-            && instance_name
-                .as_ref()
-                .map_or(false, |v| matches!(v, InstanceName::Local(_)))
-        {
-            let instance_name = match instance_name.as_ref().unwrap() {
-                InstanceName::Local(instance) => instance,
-                InstanceName::Cloud { org_slug, name } => anyhow::bail!(
-                    // should never occur because of the above check
-                    format!(
-                        "cannot use {BRANDING_CLOUD} instance {}/{}: instance is not linked to a project",
-                        org_slug, name
-                    )
-                ),
-            };
+        ctx.instance_name = instance_name.map(|n| n.clone().into());
+        if let Some(instance_name) = &ctx.instance_name {
+            let instance_name = ensure_local_instance(instance_name)?;
 
             let credentials_path = credentials::path(instance_name)?;
             if credentials_path.exists() {
                 let credentials = credentials::read(&credentials_path).await?;
-                branch = credentials.branch.or(credentials.database);
+                ctx.current_branch = credentials.branch.or(credentials.database);
             }
-        } else if let Some(project_dir) = project_dir.as_ref() {
-            // try read from the database file
-            let stash_dir = get_stash_path(project_dir)?;
-            branch = project::database_name(&stash_dir)?;
+            return Ok(ctx);
         }
 
-        Ok(Context {
-            project_dir: project_dir.map(|p| p.to_owned()),
-            instance_name,
-            current_branch: branch,
-            manifest_cache: Mutex::new(None),
-        })
+        // find the project and use it's instance name and branch
+        ctx.project = project::find_project_async(None).await?;
+        if let Some(location) = &ctx.project {
+            let stash_dir = get_stash_path(&location.root)?;
+            ctx.instance_name = project::instance_name(&stash_dir).ok();
+            ctx.current_branch = project::database_name(&stash_dir).ok().flatten();
+        }
+
+        Ok(ctx)
     }
 
     /// Returns the "current" branch. Connection must not have its branch param modified.
@@ -111,41 +91,25 @@ impl Context {
             return Ok(());
         };
 
-        match instance_name {
-            InstanceName::Local(local_instance_name) => {
-                let path = credentials::path(local_instance_name)?;
-                let mut credentials = credentials::read(&path).await?;
-                credentials.database = Some(branch.to_string());
-                credentials.branch = Some(branch.to_string());
+        if let Some(project) = &self.project {
+            // only place to store the branch is the database file in the project
+            let stash_path = get_stash_path(&project.root)?.join("database");
 
-                credentials::write_async(&path, &credentials).await?;
+            // ensure that the temp file is created in the same directory as the 'database' file
+            let tmp = tmp_file_path(&stash_path);
+            fs::write(&tmp, branch)?;
+            fs::rename(&tmp, &stash_path)?;
+        } else {
+            let name = ensure_local_instance(instance_name)?;
 
-                Ok(())
-            }
-            InstanceName::Cloud {
-                org_slug: _org_slug,
-                name: _name,
-            } if self.project_dir.is_some() => {
-                // only place to store the branch is the database file in the project
-                let stash_path =
-                    get_stash_path(self.project_dir.as_ref().unwrap())?.join("database");
+            let path = credentials::path(name)?;
+            let mut credentials = credentials::read(&path).await?;
+            credentials.database = Some(branch.to_string());
+            credentials.branch = Some(branch.to_string());
 
-                // ensure that the temp file is created in the same directory as the 'database' file
-                let tmp = tmp_file_path(&stash_path);
-                fs::write(&tmp, branch)?;
-                fs::rename(&tmp, &stash_path)?;
-
-                Ok(())
-            }
-            InstanceName::Cloud {
-                org_slug: org,
-                name: inst,
-            } => {
-                anyhow::bail!(
-                    format!("cannot switch branches on {BRANDING_CLOUD} instance {}/{}: instance is not linked to a project", org, inst)
-                )
-            }
+            credentials::write_async(&path, &credentials).await?;
         }
+        Ok(())
     }
 
     pub async fn get_project(&self) -> anyhow::Result<Option<project::Context>> {
@@ -158,5 +122,17 @@ impl Context {
         let mut cache_lock = self.manifest_cache.lock().unwrap();
         *cache_lock = Some(manifest.clone());
         Ok(manifest)
+    }
+}
+
+fn ensure_local_instance(instance_name: &InstanceName) -> anyhow::Result<&str> {
+    match instance_name {
+        InstanceName::Local(instance) => Ok(instance),
+        InstanceName::Cloud { .. } => {
+            // should never occur because of the above check
+            Err(anyhow::anyhow!(
+                "cannot use branches on {BRANDING_CLOUD} instance unless it is linked to a project"
+            ))
+        }
     }
 }
