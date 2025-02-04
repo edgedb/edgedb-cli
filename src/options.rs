@@ -8,7 +8,7 @@ use const_format::concatcp;
 use gel_errors::{ClientNoCredentialsError, ResultExt};
 use gel_protocol::model;
 use gel_tokio::credentials::TlsSecurity;
-use gel_tokio::{get_project_path, Builder, Config};
+use gel_tokio::{Builder, Config};
 use is_terminal::IsTerminal;
 use tokio::task::spawn_blocking as unblock;
 
@@ -901,12 +901,12 @@ impl Options {
                 with_password(&self.conn_options, cfg).await?;
 
                 if e.is::<ClientNoCredentialsError>() {
-                    let project_dir = get_project_path(None, true).await?;
-                    let message = if let Some(project_dir) = project_dir {
+                    let project = project::find_project_async(None).await?;
+                    let message = if let Some(project) = project {
                         format!(
                             "found project at {}, but it is not initialized and no connection options \
                             are specified: {errors:?}",
-                            project_dir.as_relative().display()
+                            project.root.as_relative().display()
                         )
                     } else {
                         format!(
