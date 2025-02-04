@@ -29,7 +29,7 @@ use crate::portable;
 use crate::portable::local::{instance_data_dir, runstate_dir};
 use crate::portable::options::InstanceName;
 use crate::portable::project;
-use crate::print::{self, Highlight};
+use crate::print::{self, AsRelativeToCurrentDir, Highlight};
 use crate::repl::{InputLanguage, OutputFormat};
 use crate::tty_password;
 use crate::watch::options::WatchCommand;
@@ -904,8 +904,9 @@ impl Options {
                     let project_dir = get_project_path(None, true).await?;
                     let message = if let Some(project_dir) = project_dir {
                         format!(
-                            "project is not initialized at {project_dir:?} and no connection options \
-                            are specified: {errors:?}"
+                            "found project at {}, but it is not initialized and no connection options \
+                            are specified: {errors:?}",
+                            project_dir.as_relative().display()
                         )
                     } else {
                         format!(
