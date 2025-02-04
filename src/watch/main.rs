@@ -1,24 +1,64 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use const_format::concatcp;
 
 use edgeql_parser::helpers::quote_string;
 use gel_tokio::Error;
 use indicatif::ProgressBar;
-use notify::{RecursiveMode, Watcher};
-use tokio::sync::watch;
-use tokio::time::timeout;
+use notify::RecursiveMode;
 
 use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::connect::{Connection, Connector};
-use crate::interrupt::Interrupt;
 use crate::migrations::{self, dev_mode};
 use crate::options::Options;
 use crate::portable::project;
 use crate::print::AsRelativeToCurrentDir;
-use crate::watch::options::WatchCommand;
+use crate::watch::WatchCommand;
 
-const STABLE_TIME: Duration = Duration::from_millis(100);
+#[tokio::main(flavor = "current_thread")]
+pub async fn run(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
+    let project = project::ensure_ctx_async(None).await?;
+    let mut ctx = WatchContext {
+        connector: options.create_connector().await?,
+        migration: migrations::Context::for_project(project)?,
+        last_error: false,
+    };
+    log::info!(
+        "Initialized in project dir {}",
+        ctx.project().location.root.as_relative().display()
+    );
+
+    let mut watcher = super::fs_watcher::FsWatcher::new()?;
+    watcher.watch(&ctx.project().location.root, RecursiveMode::NonRecursive)?;
+    watcher.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
+
+    ctx.do_update().await?;
+
+    eprintln!("{BRANDING} Watch initialized.");
+    eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
+    eprintln!(
+        "Monitoring {}",
+        ctx.project().location.root.as_relative().display()
+    );
+
+    let mut retry_timeout = None::<Duration>;
+    while watcher.wait(retry_timeout).await.is_ok() {
+        if let Err(e) = ctx.do_update().await {
+            log::error!("Error updating database: {e:#}. Will retry in 10s.");
+            retry_timeout = Some(Duration::from_secs(10));
+        } else {
+            retry_timeout = None;
+        }
+    }
+
+    // clear error
+    let res = ctx.try_connect_and_clear_error().await;
+    if let Err(e) = res {
+        log::error!("Cannot clear error: {:#}", e);
+    }
+
+    Ok(())
+}
 
 struct WatchContext {
     connector: Connector,
@@ -46,108 +86,6 @@ struct ErrorJson {
     details: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     context: Option<ErrorContext>,
-}
-
-pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .thread_name("watch")
-        .enable_all()
-        .build()?;
-    let project = project::ensure_ctx(None)?;
-    let mut ctx = WatchContext {
-        connector: options.block_on_create_connector()?,
-        migration: migrations::Context::for_project(project)?,
-        last_error: false,
-    };
-    log::info!(
-        "Initialized in project dir {}",
-        ctx.project().location.root.as_relative().display()
-    );
-    let (tx, rx) = watch::channel(());
-    let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
-        res.map_err(|e| {
-            log::warn!("Error watching filesystem: {:#}", e);
-        })
-        .ok();
-        tx.send(()).unwrap();
-    })?;
-    watch.watch(&ctx.project().location.root, RecursiveMode::NonRecursive)?;
-    watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
-
-    runtime.block_on(ctx.do_update())?;
-
-    eprintln!("{BRANDING} Watch initialized.");
-    eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
-    eprintln!(
-        "Monitoring {}.",
-        ctx.project().location.root.as_relative().display()
-    );
-    let res = runtime.block_on(watch_loop(rx, &mut ctx));
-    runtime
-        .block_on(ctx.try_connect_and_clear_error())
-        .map_err(|e| log::error!("Cannot clear error: {:#}", e))
-        .ok();
-    res
-}
-
-pub async fn wait_changes(
-    rx: &mut watch::Receiver<()>,
-    retry_deadline: Option<Instant>,
-) -> anyhow::Result<()> {
-    if let Some(retry_deadline) = retry_deadline {
-        let timeo = retry_deadline
-            .checked_duration_since(Instant::now())
-            .unwrap_or(Duration::new(0, 0));
-        match timeout(timeo, rx.changed()).await {
-            Ok(Ok(())) => {
-                log::debug!(
-                    "Change notification received. \
-                             Waiting to stabilize."
-                );
-            }
-            Ok(Err(e)) => {
-                anyhow::bail!("error receiving from watch: {:#}", e);
-            }
-            Err(_) => {
-                log::debug!("Retrying...");
-            }
-        }
-    } else {
-        rx.changed().await?;
-        log::debug!("Change notification received. Waiting to stabilize.");
-    }
-    loop {
-        match timeout(STABLE_TIME, rx.changed()).await {
-            Ok(Ok(())) => continue,
-            Ok(Err(e)) => {
-                anyhow::bail!("error receiving from watch: {:#}", e);
-            }
-            Err(_) => break,
-        }
-    }
-    Ok(())
-}
-
-async fn watch_loop(mut rx: watch::Receiver<()>, ctx: &mut WatchContext) -> anyhow::Result<()> {
-    let mut retry_deadline = None::<Instant>;
-    loop {
-        {
-            let ctrl_c = Interrupt::ctrl_c();
-            tokio::select! {
-                _ = wait_changes(&mut rx, retry_deadline) => (),
-                res = ctrl_c.wait_result() => res?,
-            };
-        }
-        retry_deadline = None;
-        if let Err(e) = ctx.do_update().await {
-            log::error!(
-                "Error updating database: {:#}. \
-                         Will retry in 10s.",
-                e
-            );
-            retry_deadline = Some(Instant::now() + Duration::from_secs(10));
-        }
-    }
 }
 
 impl WatchContext {

@@ -73,7 +73,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::Info(info) => commands::info(options, info),
         Command::UI(c) => commands::show_ui(c, options),
         Command::Cloud(c) => cloud_main(c, &options.cloud_options),
-        Command::Watch(c) => watch::watch(options, c),
+        Command::Watch(c) => watch::run(options, c),
         Command::Branch(c) => {
             let opts = init_command_opts(options)?;
             branch::run(&opts, c)?;
