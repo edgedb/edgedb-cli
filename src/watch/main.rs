@@ -106,7 +106,6 @@ impl WatchContext {
                 if self.last_error {
                     clear_error(&mut cli).await;
                     self.last_error = false;
-                    eprintln!("Resolved. Schema is up to date now.");
                 }
             }
             Err(e) => {

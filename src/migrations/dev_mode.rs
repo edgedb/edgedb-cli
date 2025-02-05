@@ -54,7 +54,7 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> 
             rebase_to_schema(cli, ctx, &migrations).await?;
         }
     }
-    bar.set_message("schema up to date");
+    bar.println("Schema up to date.");
     Ok(())
 }
 
