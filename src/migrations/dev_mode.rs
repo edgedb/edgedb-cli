@@ -12,13 +12,13 @@ use crate::bug;
 use crate::commands::Options;
 use crate::migrations::apply::{apply_migrations, apply_migrations_inner};
 use crate::migrations::context::Context;
+use crate::migrations::create;
 use crate::migrations::create::{execute_start_migration, unsafe_populate};
 use crate::migrations::create::{first_migration, normal_migration};
 use crate::migrations::create::{write_migration, MigrationKey};
 use crate::migrations::create::{CurrentMigration, FutureMigration};
 use crate::migrations::edb::{execute, execute_if_connected, query_row};
 use crate::migrations::migration::{self, MigrationFile};
-use crate::migrations::options::CreateMigration;
 use crate::migrations::timeout;
 use crate::portable::ver;
 
@@ -249,47 +249,47 @@ pub async fn rebase_to_schema(
 }
 
 async fn create_in_rewrite(
-    ctx: &Context,
-    cli: &mut Connection,
+    cmd: &create::Command,
+    conn: &mut Connection,
     migrations: &IndexMap<String, MigrationFile>,
-    create: &CreateMigration,
+    ctx: &Context,
 ) -> anyhow::Result<FutureMigration> {
-    apply_migrations_inner(cli, migrations, false).await?;
+    apply_migrations_inner(conn, migrations, false).await?;
     if migrations.is_empty() {
-        first_migration(cli, ctx, create).await
+        first_migration(conn, ctx, cmd).await
     } else {
         let key = MigrationKey::Index((migrations.len() + 1) as u64);
         let parent = migrations.keys().last().map(|x| &x[..]);
-        normal_migration(cli, ctx, key, parent, create).await
+        normal_migration(conn, ctx, key, parent, cmd).await
     }
 }
 
 pub async fn create(
-    cli: &mut Connection,
-    ctx: &Context,
+    cmd: &create::Command,
+    conn: &mut Connection,
     _options: &Options,
-    create: &CreateMigration,
+    ctx: &Context,
 ) -> anyhow::Result<()> {
     let migrations = migration::read_all(ctx, true).await?;
 
-    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    let old_timeout = timeout::inhibit_for_transaction(conn).await?;
     let migration = async_try! {
         async {
-            execute(cli, "START MIGRATION REWRITE", None).await?;
+            execute(conn, "START MIGRATION REWRITE", None).await?;
             async_try! {
                 async {
-                    create_in_rewrite(ctx, cli, &migrations, create).await
+                    create_in_rewrite(cmd, conn,  &migrations, ctx,).await
                 },
                 finally async {
-                    execute_if_connected(cli, "ABORT MIGRATION REWRITE").await
+                    execute_if_connected(conn, "ABORT MIGRATION REWRITE").await
                         .context("migration rewrite cleanup")
                 }
             }
         },
         finally async {
-            timeout::restore_for_transaction(cli, old_timeout).await
+            timeout::restore_for_transaction(conn, old_timeout).await
         }
     }?;
-    write_migration(ctx, &migration, !create.non_interactive).await?;
+    write_migration(ctx, &migration, !cmd.non_interactive).await?;
     Ok(())
 }

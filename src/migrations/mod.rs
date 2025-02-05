@@ -1,5 +1,5 @@
 mod context;
-mod create;
+
 mod db_migration;
 mod edb;
 mod edit;
@@ -15,6 +15,7 @@ mod status;
 mod timeout;
 
 pub mod apply;
+pub mod create;
 pub mod dev_mode;
 pub mod merge;
 pub mod options;
@@ -26,7 +27,6 @@ const NULL_MIGRATION: &str = "initial";
 
 pub use self::log::{log, log_fs};
 pub use context::Context;
-pub use create::create;
 pub use edit::{edit, edit_no_check};
 pub use extract::extract;
 pub use status::status;

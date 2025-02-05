@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use crate::branding::BRANDING_CLI_CMD;
-use crate::migrations::options::{Migrate, Migration};
+use crate::migrations;
+use crate::migrations::options::Migration;
 use crate::options::ConnectionOptions;
 use crate::portable::options::InstanceName;
 use crate::repl::{self, VectorLimit};
@@ -22,7 +23,7 @@ pub enum Common {
     /// Migration management subcommands
     Migration(Box<Migration>),
     /// Apply migration (alias for [`BRANDING_CLI_CMD`] migration apply)
-    Migrate(Migrate),
+    Migrate(migrations::apply::Command),
 
     /// Database commands
     Database(Database),

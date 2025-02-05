@@ -118,15 +118,15 @@ pub async fn common(
             let cmd = branch::Subcommand::from(cmd.subcommand.clone());
             return branch::do_run(&cmd, options, Some(cli), None).await;
         }
-        Migrate(params) => {
-            migrations::apply::run(cli, options, params).await?;
+        Migrate(cmd) => {
+            migrations::apply::run(cmd, cli, options).await?;
         }
         Migration(m) => match &m.subcommand {
-            MigrationCmd::Apply(params) => {
-                migrations::apply::run(cli, options, params).await?;
+            MigrationCmd::Apply(cmd) => {
+                migrations::apply::run(cmd, cli, options).await?;
             }
-            MigrationCmd::Create(params) => {
-                migrations::create(cli, options, params).await?;
+            MigrationCmd::Create(cmd) => {
+                migrations::create::run(cmd, cli, options).await?;
             }
             MigrationCmd::Status(params) => {
                 migrations::status(cli, options, params).await?;

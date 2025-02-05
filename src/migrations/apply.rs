@@ -18,31 +18,74 @@ use crate::connect::{Connection, ResponseStream};
 use crate::error_display::print_query_error;
 use crate::hint::HintExt;
 use crate::hooks;
+use crate::migrations;
 use crate::migrations::context::Context;
 use crate::migrations::db_migration;
 use crate::migrations::db_migration::{DBMigration, MigrationGeneratedBy};
 use crate::migrations::dev_mode;
 use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migration::{self, MigrationFile};
-use crate::migrations::options::Migrate;
 use crate::migrations::timeout;
+use crate::options::ConnectionOptions;
 use crate::print::{self, Highlight};
 
 pub async fn run(
+    cmd: &Command,
     conn: &mut Connection,
     _options: &Options,
-    migrate: &Migrate,
 ) -> Result<(), anyhow::Error> {
     let old_state = conn.set_ignore_error_state();
-    let res = run_inner(conn, migrate).await;
+    let res = run_inner(cmd, conn).await;
     conn.restore_state(old_state);
     res
 }
 
-async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyhow::Error> {
-    let ctx = Context::for_migration_config(&migrate.cfg, migrate.quiet).await?;
-    if migrate.dev_mode {
-        let bar = if migrate.quiet {
+#[derive(clap::Args, Clone, Debug)]
+pub struct Command {
+    #[command(flatten)]
+    pub conn: Option<ConnectionOptions>,
+
+    #[command(flatten)]
+    pub cfg: migrations::options::MigrationConfig,
+    /// Do not print messages, only indicate success by exit status
+    #[arg(long)]
+    pub quiet: bool,
+
+    /// Upgrade to a specified revision.
+    ///
+    /// A unique revision prefix can be specified instead of a full
+    /// revision name.
+    ///
+    /// If this revision is applied, the command is a no-op. The command
+    /// ensures that the revision is present, but additional applied revisions
+    /// are not considered an error.
+    #[arg(long, conflicts_with = "dev_mode")]
+    pub to_revision: Option<String>,
+
+    /// Dev mode is used to temporarily apply schema on top of those found in
+    /// the migration history. Usually used for testing purposes, as well as
+    /// `edgedb watch` which creates a dev mode migration script each time
+    /// a file is saved by a user.
+    ///
+    /// Current dev mode migrations can be seen with the following query:
+    ///
+    /// `select schema::Migration {*} filter .generated_by = schema::MigrationGeneratedBy.DevMode;`
+    ///
+    /// `edgedb migration create` followed by `edgedb migrate --dev-mode` will
+    /// then finalize a migration by turning existing dev mode migrations into
+    /// a regular `.edgeql` file, after which the above query will return nothing.
+    #[arg(long)]
+    pub dev_mode: bool,
+
+    /// Runs the migration(s) in a single transaction.
+    #[arg(long = "single-transaction")]
+    pub single_transaction: bool,
+}
+
+async fn run_inner(cmd: &Command, conn: &mut Connection) -> Result<(), anyhow::Error> {
+    let ctx = Context::for_migration_config(&cmd.cfg, cmd.quiet).await?;
+    if cmd.dev_mode {
+        let bar = if cmd.quiet {
             ProgressBar::hidden()
         } else {
             ProgressBar::new_spinner()
@@ -53,7 +96,7 @@ async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyho
     let db_migrations = db_migration::read_all(conn, false, true).await?;
     let last_db_rev = db_migrations.last().map(|kv| kv.0);
 
-    let target_rev = if let Some(prefix) = &migrate.to_revision {
+    let target_rev = if let Some(prefix) = &cmd.to_revision {
         let db_rev = db_migration::find_by_prefix(conn, prefix).await?;
         let file_revs = migrations
             .iter()
@@ -75,7 +118,7 @@ async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyho
             (Some(targ), None) => &targ.name,
         };
         if let Some(db_rev) = db_rev {
-            if !migrate.quiet {
+            if !cmd.quiet {
                 let msg = "Database is up to date.".to_string().emphasized().success();
                 if Some(&db_rev.name) == last_db_rev {
                     print::msg!("{} Revision {}", msg, db_rev.name);
@@ -99,7 +142,7 @@ async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyho
         if let Some(last) = migrations.last() {
             if !migrations.contains_key(last_db_rev) {
                 let target_rev = target_rev.as_ref().unwrap_or(last.0);
-                return fixup(conn, &ctx, &migrations, &db_migrations, target_rev, migrate).await;
+                return fixup(conn, &ctx, &migrations, &db_migrations, target_rev, cmd).await;
             }
         } else {
             return Err(anyhow::anyhow!(
@@ -119,7 +162,7 @@ async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyho
     };
     let migrations = slice(&migrations, last_db_rev, target_rev.as_ref())?;
     if migrations.is_empty() {
-        if !migrate.quiet {
+        if !cmd.quiet {
             eprintln!(
                 "{} Revision {}",
                 "Everything is up to date.".emphasized().success(),
@@ -131,7 +174,7 @@ async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyho
         }
         return Ok(());
     }
-    apply_migrations(conn, migrations, &ctx, migrate.single_transaction).await?;
+    apply_migrations(conn, migrations, &ctx, cmd.single_transaction).await?;
     if db_migrations.is_empty() {
         disable_ddl(conn).await?;
     }
@@ -204,7 +247,7 @@ async fn fixup(
     migrations: &IndexMap<String, MigrationFile>,
     db_migrations: &IndexMap<String, DBMigration>,
     target: &String,
-    _options: &Migrate,
+    _options: &Command,
 ) -> anyhow::Result<()> {
     let fixups = migration::read_fixups(ctx, true).await?;
     let last_db_migration = db_migrations
