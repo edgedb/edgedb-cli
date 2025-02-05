@@ -1242,7 +1242,7 @@ async fn migrate_async(inst: &project::Handle<'_>, ask_for_running: bool) -> any
         conn = inst.get_connection().await?;
     }
 
-    migrations::migrate(
+    migrations::apply::run(
         &mut conn,
         &Options {
             command_line: true,

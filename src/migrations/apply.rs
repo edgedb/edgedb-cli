@@ -28,6 +28,116 @@ use crate::migrations::options::Migrate;
 use crate::migrations::timeout;
 use crate::print::{self, Highlight};
 
+pub async fn run(
+    conn: &mut Connection,
+    _options: &Options,
+    migrate: &Migrate,
+) -> Result<(), anyhow::Error> {
+    let old_state = conn.set_ignore_error_state();
+    let res = run_inner(conn, migrate).await;
+    conn.restore_state(old_state);
+    res
+}
+
+async fn run_inner(conn: &mut Connection, migrate: &Migrate) -> Result<(), anyhow::Error> {
+    let ctx = Context::for_migration_config(&migrate.cfg, migrate.quiet).await?;
+    if migrate.dev_mode {
+        let bar = if migrate.quiet {
+            ProgressBar::hidden()
+        } else {
+            ProgressBar::new_spinner()
+        };
+        return dev_mode::migrate(conn, &ctx, &bar).await;
+    }
+    let migrations = migration::read_all(&ctx, true).await?;
+    let db_migrations = db_migration::read_all(conn, false, true).await?;
+    let last_db_rev = db_migrations.last().map(|kv| kv.0);
+
+    let target_rev = if let Some(prefix) = &migrate.to_revision {
+        let db_rev = db_migration::find_by_prefix(conn, prefix).await?;
+        let file_revs = migrations
+            .iter()
+            .filter(|r| r.0.starts_with(prefix))
+            .map(|r| &r.1.data)
+            .collect::<Vec<_>>();
+        if file_revs.len() > 1 {
+            anyhow::bail!("More than one revision matches prefix {:?}", prefix);
+        }
+        let target_rev = match (&db_rev, file_revs.last()) {
+            (None, None) => {
+                anyhow::bail!("No revision with prefix {:?} found", prefix);
+            }
+            (None, Some(targ)) => &targ.id,
+            (Some(a), Some(b)) if a.name != b.id => {
+                anyhow::bail!("More than one revision matches prefix {:?}", prefix);
+            }
+            (Some(_), Some(targ)) => &targ.id,
+            (Some(targ), None) => &targ.name,
+        };
+        if let Some(db_rev) = db_rev {
+            if !migrate.quiet {
+                let msg = "Database is up to date.".to_string().emphasized().success();
+                if Some(&db_rev.name) == last_db_rev {
+                    print::msg!("{} Revision {}", msg, db_rev.name);
+                } else {
+                    print::msg!(
+                        "{} Revision {} is the ancestor of the latest {}",
+                        msg,
+                        db_rev.name,
+                        last_db_rev.unwrap_or(&String::from("initial")),
+                    );
+                }
+            }
+            return Err(ExitCode::new(0))?;
+        }
+        Some(target_rev.clone())
+    } else {
+        None
+    };
+
+    if let Some(last_db_rev) = last_db_rev {
+        if let Some(last) = migrations.last() {
+            if !migrations.contains_key(last_db_rev) {
+                let target_rev = target_rev.as_ref().unwrap_or(last.0);
+                return fixup(conn, &ctx, &migrations, &db_migrations, target_rev, migrate).await;
+            }
+        } else {
+            return Err(anyhow::anyhow!(
+                "there is applied migration history in the database \
+                 but {:?} is empty",
+                ctx.schema_dir.join("migrations"),
+            )
+            .with_hint(|| {
+                format!(
+                    "You might have an incorrect or outdated source checkout. \
+                     If you don't, consider running `{BRANDING_CLI_CMD} migration extract` \
+                     to bring the history in {:?} in sync with the database.",
+                    ctx.schema_dir.join("migrations")
+                )
+            }))?;
+        }
+    };
+    let migrations = slice(&migrations, last_db_rev, target_rev.as_ref())?;
+    if migrations.is_empty() {
+        if !migrate.quiet {
+            eprintln!(
+                "{} Revision {}",
+                "Everything is up to date.".emphasized().success(),
+                last_db_rev
+                    .map(|m| &m[..])
+                    .unwrap_or("initial")
+                    .emphasized(),
+            );
+        }
+        return Ok(());
+    }
+    apply_migrations(conn, migrations, &ctx, migrate.single_transaction).await?;
+    if db_migrations.is_empty() {
+        disable_ddl(conn).await?;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Operation<'a> {
     Apply(&'a MigrationFile),
@@ -86,112 +196,6 @@ impl<'a> AsOperations for Vec<Operation<'a>> {
     fn as_operations(&self) -> OperationIter<'_> {
         Box::new(self.iter().cloned())
     }
-}
-
-pub async fn migrate(
-    cli: &mut Connection,
-    _options: &Options,
-    migrate: &Migrate,
-) -> Result<(), anyhow::Error> {
-    let old_state = cli.set_ignore_error_state();
-    let res = do_migrate(cli, migrate).await;
-    cli.restore_state(old_state);
-    res
-}
-
-async fn do_migrate(cli: &mut Connection, migrate: &Migrate) -> Result<(), anyhow::Error> {
-    let ctx = Context::for_migration_config(&migrate.cfg, migrate.quiet).await?;
-    if migrate.dev_mode {
-        // TODO(tailhook) figure out progressbar in non-quiet mode
-        return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
-    }
-    let migrations = migration::read_all(&ctx, true).await?;
-    let db_migrations = db_migration::read_all(cli, false, true).await?;
-    let last_db_rev = db_migrations.last().map(|kv| kv.0);
-
-    let target_rev = if let Some(prefix) = &migrate.to_revision {
-        let db_rev = db_migration::find_by_prefix(cli, prefix).await?;
-        let file_revs = migrations
-            .iter()
-            .filter(|r| r.0.starts_with(prefix))
-            .map(|r| &r.1.data)
-            .collect::<Vec<_>>();
-        if file_revs.len() > 1 {
-            anyhow::bail!("More than one revision matches prefix {:?}", prefix);
-        }
-        let target_rev = match (&db_rev, file_revs.last()) {
-            (None, None) => {
-                anyhow::bail!("No revision with prefix {:?} found", prefix);
-            }
-            (None, Some(targ)) => &targ.id,
-            (Some(a), Some(b)) if a.name != b.id => {
-                anyhow::bail!("More than one revision matches prefix {:?}", prefix);
-            }
-            (Some(_), Some(targ)) => &targ.id,
-            (Some(targ), None) => &targ.name,
-        };
-        if let Some(db_rev) = db_rev {
-            if !migrate.quiet {
-                let msg = "Database is up to date.".to_string().emphasized().success();
-                if Some(&db_rev.name) == last_db_rev {
-                    print::msg!("{} Revision {}", msg, db_rev.name);
-                } else {
-                    print::msg!(
-                        "{} Revision {} is the ancestor of the latest {}",
-                        msg,
-                        db_rev.name,
-                        last_db_rev.unwrap_or(&String::from("initial")),
-                    );
-                }
-            }
-            return Err(ExitCode::new(0))?;
-        }
-        Some(target_rev.clone())
-    } else {
-        None
-    };
-
-    if let Some(last_db_rev) = last_db_rev {
-        if let Some(last) = migrations.last() {
-            if !migrations.contains_key(last_db_rev) {
-                let target_rev = target_rev.as_ref().unwrap_or(last.0);
-                return fixup(cli, &ctx, &migrations, &db_migrations, target_rev, migrate).await;
-            }
-        } else {
-            return Err(anyhow::anyhow!(
-                "there is applied migration history in the database \
-                 but {:?} is empty",
-                ctx.schema_dir.join("migrations"),
-            )
-            .with_hint(|| {
-                format!(
-                    "You might have an incorrect or outdated source checkout. \
-                     If you don't, consider running `{BRANDING_CLI_CMD} migration extract` \
-                     to bring the history in {:?} in sync with the database.",
-                    ctx.schema_dir.join("migrations")
-                )
-            }))?;
-        }
-    };
-    let migrations = slice(&migrations, last_db_rev, target_rev.as_ref())?;
-    if migrations.is_empty() {
-        if !migrate.quiet {
-            eprintln!(
-                "{} Revision {}",
-                "Everything is up to date.".emphasized().success(),
-                last_db_rev
-                    .map(|m| &m[..])
-                    .unwrap_or("initial")
-                    .emphasized(),
-            );
-        }
-        return Ok(());
-    }
-    apply_migrations(cli, migrations, &ctx, migrate.single_transaction).await?;
-    if db_migrations.is_empty() {
-        disable_ddl(cli).await?;
-    }
-    Ok(())
 }
 
 async fn fixup(
@@ -570,7 +574,7 @@ pub async fn apply_migrations_inner(
     Ok(())
 }
 
-pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
+async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
     let ddl_setting = cli
         .query_required_single(
             r#"

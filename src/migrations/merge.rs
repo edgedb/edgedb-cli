@@ -5,7 +5,7 @@ use crate::connect::Connection;
 use crate::migrations::create::{write_migration, MigrationKey, MigrationToText};
 use crate::migrations::db_migration::{read_all, DBMigration};
 use crate::migrations::migration::MigrationFile;
-use crate::migrations::{migrate, migration, Context};
+use crate::migrations::{apply, migration, Context};
 
 pub struct MergeMigrations {
     pub base_migrations: IndexMap<String, MergeMigration>,
@@ -180,5 +180,5 @@ pub async fn apply_merge_migration_files(
         .filter(|(id, _)| merge_migrations.target_migrations.contains_key(id))
         .collect();
 
-    migrate::apply_migrations(connection, &migrations, context, true).await
+    apply::apply_migrations(connection, &migrations, context, true).await
 }

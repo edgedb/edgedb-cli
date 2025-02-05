@@ -14,7 +14,7 @@ use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::create::{execute_start_migration, SchemaFileError};
 use crate::migrations::edb::{execute, execute_if_connected};
-use crate::migrations::migrate::{apply_migration, ApplyMigrationError};
+use crate::migrations::apply::{apply_migration, ApplyMigrationError};
 use crate::migrations::migration;
 use crate::migrations::options::UpgradeCheck;
 use crate::migrations::timeout;

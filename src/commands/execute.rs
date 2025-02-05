@@ -119,11 +119,11 @@ pub async fn common(
             return branch::do_run(&cmd, options, Some(cli), None).await;
         }
         Migrate(params) => {
-            migrations::migrate(cli, options, params).await?;
+            migrations::apply::run(cli, options, params).await?;
         }
         Migration(m) => match &m.subcommand {
             MigrationCmd::Apply(params) => {
-                migrations::migrate(cli, options, params).await?;
+                migrations::apply::run(cli, options, params).await?;
             }
             MigrationCmd::Create(params) => {
                 migrations::create(cli, options, params).await?;
