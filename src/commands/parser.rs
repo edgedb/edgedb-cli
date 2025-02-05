@@ -329,7 +329,7 @@ pub struct WipeDatabase {
     #[arg(long)]
     pub non_interactive: bool,
 
-    #[arg(short = 'I', long, required = true)]
+    #[arg(from_global)]
     pub instance: Option<InstanceName>,
 }
 
