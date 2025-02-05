@@ -280,6 +280,7 @@ fn branch_commands() {
         .arg("--database")
         .arg("test_branch_3")
         .arg("--non-interactive")
+        .arg("--no-migrations")
         .assert()
         .context("project-init", "link project to the test instance")
         .success();
