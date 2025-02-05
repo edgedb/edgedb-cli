@@ -192,7 +192,7 @@ fn branch_commands() {
         .success()
         .stdout(predicates::str::contains("test_branch_1"));
 
-    // switch
+    // switch without specifying  --instance
     SERVER
         .admin_cmd()
         .arg("branch")
@@ -262,7 +262,91 @@ fn branch_commands() {
         .context("switch", "when current branch is destroyed")
         .success();
 
-    // TODO: test how this works in projects
+    // setup a project (first unlink, so repeated tests work)
+    crate::edgedb_cli_cmd()
+        .current_dir("tests/proj/project1")
+        .arg("project")
+        .arg("unlink")
+        .arg("--non-interactive")
+        .assert()
+        .context("project-unlink", "");
+    crate::edgedb_cli_cmd()
+        .current_dir("tests/proj/project1")
+        .arg("project")
+        .arg("init")
+        .arg("--link")
+        .arg("--server-instance")
+        .arg(instance_name)
+        .arg("--non-interactive")
+        .assert()
+        .context("project-init", "link project to the test instance")
+        .success();
+
+    #[track_caller]
+    fn get_current_project_branch() -> String {
+        let output = crate::edgedb_cli_cmd()
+            .current_dir("tests/proj/project1")
+            .arg("branch")
+            .arg("current")
+            .arg("--plain")
+            .output()
+            .unwrap();
+        String::from_utf8(output.stdout).unwrap().trim().into()
+    }
+    #[track_caller]
+    fn get_current_instance_branch(instance_name: &str) -> String {
+        let output = crate::edgedb_cli_cmd()
+            .arg("--instance")
+            .arg(instance_name)
+            .arg("branch")
+            .arg("current")
+            .arg("--plain")
+            .output()
+            .unwrap();
+        String::from_utf8(output.stdout).unwrap().trim().into()
+    }
+
+    // branch current after project init
+    assert_eq!(get_current_project_branch(), "main");
+
+    // switch project branch
+    crate::edgedb_cli_cmd()
+        .current_dir("tests/proj/project1")
+        .arg("branch")
+        .arg("switch")
+        .arg("test_branch_3")
+        .assert()
+        .context("switch", "switch project to another branch")
+        .success();
+    assert_eq!(get_current_project_branch(), "test_branch_3");
+    assert_eq!(get_current_instance_branch(instance_name), "main");
+
+    // switch instance branch
+    crate::edgedb_cli_cmd()
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("branch")
+        .arg("switch")
+        .arg("test_branch_1")
+        .assert()
+        .context("switch", "switch instance branch")
+        .success();
+    assert_eq!(get_current_project_branch(), "test_branch_3");
+    assert_eq!(get_current_instance_branch(instance_name), "test_branch_1");
+    
+    // switch instance branch, but from within a project
+    crate::edgedb_cli_cmd()
+        .current_dir("tests/proj/project1")
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("branch")
+        .arg("switch")
+        .arg("main")
+        .assert()
+        .context("switch", "switch instance branch")
+        .success();
+    assert_eq!(get_current_project_branch(), "test_branch_3");
+    assert_eq!(get_current_instance_branch(instance_name), "main");
 }
 
 #[test]
