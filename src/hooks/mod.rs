@@ -1,3 +1,5 @@
+use std::path;
+
 use crate::portable::{project, windows};
 use crate::print::{self, Highlight};
 
@@ -10,27 +12,13 @@ pub async fn on_action_sync(
 }
 
 pub async fn on_action(action: &'static str, project: &project::Context) -> anyhow::Result<()> {
-    let Some(hook) = get_hook(action, &project.manifest) else {
+    let Some(script) = get_hook(action, &project.manifest) else {
         return Ok(());
     };
 
-    print::msg!("{}", format!("hook {action}: {hook}").muted());
+    print::msg!("{}", format!("hook {action}: {script}").muted());
 
-    // run
-    let status = if !cfg!(windows) {
-        std::process::Command::new("/bin/sh")
-            .arg("-c")
-            .arg(hook)
-            .current_dir(&project.location.root)
-            .status()?
-    } else {
-        let wsl = windows::try_get_wsl()?;
-        wsl.sh(&project.location.root)
-            .arg("-c")
-            .arg(hook)
-            .run_for_status()
-            .await?
-    };
+    let status = run_script(script, &project.location.root).await?;
 
     // abort on error
     if !status.success() {
@@ -39,6 +27,23 @@ pub async fn on_action(action: &'static str, project: &project::Context) -> anyh
         ));
     }
     Ok(())
+}
+
+pub async fn run_script(
+    script: &str,
+    path: &path::Path,
+) -> Result<std::process::ExitStatus, anyhow::Error> {
+    let status = if !cfg!(windows) {
+        std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg(script)
+            .current_dir(path)
+            .status()?
+    } else {
+        let wsl = windows::try_get_wsl()?;
+        wsl.sh(path).arg("-c").arg(script).run_for_status().await?
+    };
+    Ok(status)
 }
 
 fn get_hook<'m>(
