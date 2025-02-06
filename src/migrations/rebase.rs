@@ -6,7 +6,7 @@ use crate::connect::Connection;
 use crate::migrations::create::{MigrationKey, MigrationToText};
 use crate::migrations::db_migration::{read_all, DBMigration};
 use crate::migrations::migration::MigrationFile;
-use crate::migrations::{create, migrate, migration, Context};
+use crate::migrations::{apply, create, migration, Context};
 use crate::print::{self, Highlight};
 use anyhow::Context as _;
 use indexmap::IndexMap;
@@ -333,5 +333,5 @@ pub async fn write_rebased_migration_files(
         .filter(|(id, _)| rebase_migrations.source_migrations.contains_key(id))
         .collect();
 
-    migrate::apply_migrations(connection, &migrations, context, true).await
+    apply::apply_migrations(connection, &migrations, context, true).await
 }

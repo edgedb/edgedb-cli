@@ -26,11 +26,11 @@ use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::highlight;
+use crate::migrations;
 use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
 use crate::migrations::edb::{execute, execute_if_connected, query_row};
 use crate::migrations::migration;
-use crate::migrations::options::CreateMigration;
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
@@ -42,6 +42,88 @@ use crate::print::{self, AsRelativeToCurrentDir, Highlight};
 use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
+
+pub async fn run(cmd: &Command, conn: &mut Connection, options: &Options) -> anyhow::Result<()> {
+    if cmd.squash {
+        squash::run(cmd, conn, options).await
+    } else {
+        let old_state = conn.set_ignore_error_state();
+        let res = run_inner(cmd, conn, options).await;
+        conn.restore_state(old_state);
+        res
+    }
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct Command {
+    #[command(flatten)]
+    pub cfg: migrations::options::MigrationConfig,
+    /// Squash all schema migrations into one and optionally provide a fixup migration.
+    ///
+    /// Note: this discards data migrations.
+    #[arg(long)]
+    pub squash: bool,
+    /// Do not ask questions. By default works only if "safe" changes are
+    /// to be done (those for which [`BRANDING`] has a high degree of confidence).
+    /// This safe default can be overridden with `--allow-unsafe`.
+    #[arg(long)]
+    pub non_interactive: bool,
+    /// Apply the most probable unsafe changes in case there are ones. This
+    /// is only useful in non-interactive mode.
+    #[arg(long)]
+    pub allow_unsafe: bool,
+    /// Create a new migration even if there are no changes (use this for
+    /// data-only migrations).
+    #[arg(long)]
+    pub allow_empty: bool,
+    /// Print queries executed.
+    #[arg(long, hide = true)]
+    pub debug_print_queries: bool,
+    /// Show error details.
+    #[arg(long, hide = true)]
+    pub debug_print_err: bool,
+}
+
+async fn run_inner(cmd: &Command, conn: &mut Connection, options: &Options) -> anyhow::Result<()> {
+    let ctx = Context::for_migration_config(&cmd.cfg, false).await?;
+
+    if dev_mode::check_client(conn).await? {
+        let dev_num = query_row::<i64>(
+            conn,
+            "SELECT count((
+            SELECT schema::Migration
+            FILTER .generated_by = schema::MigrationGeneratedBy.DevMode
+        ))",
+        )
+        .await?;
+        if dev_num > 0 {
+            log::info!("Detected dev-mode migrations");
+            return dev_mode::create(cmd, conn, options, &ctx).await;
+        }
+    }
+
+    let migrations = migration::read_all(&ctx, true).await?;
+    let old_timeout = timeout::inhibit_for_transaction(conn).await?;
+    let migration = async_try! {
+        async {
+            // This decision must be done early on because
+            // of the bug in EdgeDB:
+            //   https://github.com/edgedb/edgedb/issues/3958
+            if migrations.is_empty() {
+                first_migration(conn, &ctx, cmd).await
+            } else {
+                let key = MigrationKey::Index((migrations.len() + 1) as u64);
+                let parent = migrations.keys().last().map(|x| &x[..]);
+                normal_migration(conn, &ctx, key, parent, cmd).await
+            }
+        },
+        finally async {
+            timeout::restore_for_transaction(conn, old_timeout).await
+        }
+    }?;
+    write_migration(&ctx, &migration, !cmd.non_interactive).await?;
+    Ok(())
+}
 
 pub enum SourceName {
     Prefix,
@@ -319,7 +401,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection) -> any
 pub async fn first_migration(
     cli: &mut Connection,
     ctx: &Context,
-    options: &CreateMigration,
+    options: &Command,
 ) -> anyhow::Result<FutureMigration> {
     execute_start_migration(ctx, cli).await?;
     async_try! {
@@ -507,7 +589,7 @@ async fn run_non_interactive(
     ctx: &Context,
     cli: &mut Connection,
     key: MigrationKey,
-    options: &CreateMigration,
+    options: &Command,
 ) -> anyhow::Result<FutureMigration> {
     let descr = if options.allow_unsafe {
         unsafe_populate(ctx, cli).await?
@@ -547,7 +629,7 @@ impl InteractiveMigration<'_> {
         )
         .await
     }
-    async fn run(mut self, options: &CreateMigration) -> anyhow::Result<CurrentMigration> {
+    async fn run(mut self, options: &Command) -> anyhow::Result<CurrentMigration> {
         self.save_point().await?;
         loop {
             let descr =
@@ -724,7 +806,7 @@ async fn run_interactive(
     _ctx: &Context,
     cli: &mut Connection,
     key: MigrationKey,
-    options: &CreateMigration,
+    options: &Command,
 ) -> anyhow::Result<FutureMigration> {
     let descr = InteractiveMigration::new(cli).run(options).await?;
 
@@ -800,72 +882,12 @@ where
     Ok(())
 }
 
-pub async fn create(
-    cli: &mut Connection,
-    options: &Options,
-    create: &CreateMigration,
-) -> anyhow::Result<()> {
-    if create.squash {
-        squash::main(cli, options, create).await
-    } else {
-        let old_state = cli.set_ignore_error_state();
-        let res = _create(cli, options, create).await;
-        cli.restore_state(old_state);
-        res
-    }
-}
-
-async fn _create(
-    cli: &mut Connection,
-    options: &Options,
-    create: &CreateMigration,
-) -> anyhow::Result<()> {
-    let ctx = Context::for_migration_config(&create.cfg, false).await?;
-
-    if dev_mode::check_client(cli).await? {
-        let dev_num = query_row::<i64>(
-            cli,
-            "SELECT count((
-            SELECT schema::Migration
-            FILTER .generated_by = schema::MigrationGeneratedBy.DevMode
-        ))",
-        )
-        .await?;
-        if dev_num > 0 {
-            log::info!("Detected dev-mode migrations");
-            return dev_mode::create(cli, &ctx, options, create).await;
-        }
-    }
-
-    let migrations = migration::read_all(&ctx, true).await?;
-    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    let migration = async_try! {
-        async {
-            // This decision must be done early on because
-            // of the bug in EdgeDB:
-            //   https://github.com/edgedb/edgedb/issues/3958
-            if migrations.is_empty() {
-                first_migration(cli, &ctx, create).await
-            } else {
-                let key = MigrationKey::Index((migrations.len() + 1) as u64);
-                let parent = migrations.keys().last().map(|x| &x[..]);
-                normal_migration(cli, &ctx, key, parent, create).await
-            }
-        },
-        finally async {
-            timeout::restore_for_transaction(cli, old_timeout).await
-        }
-    }?;
-    write_migration(&ctx, &migration, !create.non_interactive).await?;
-    Ok(())
-}
-
 pub async fn normal_migration(
     cli: &mut Connection,
     ctx: &Context,
     key: MigrationKey,
     ensure_parent: Option<&str>,
-    create: &CreateMigration,
+    create: &Command,
 ) -> anyhow::Result<FutureMigration> {
     execute_start_migration(ctx, cli).await?;
     async_try! {

@@ -11,34 +11,28 @@ use crate::bug;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
+use crate::migrations::create;
 use crate::migrations::create::{execute_start_migration, write_migration};
 use crate::migrations::create::{first_migration, normal_migration};
-use crate::migrations::create::{CurrentMigration, MigrationToText};
-use crate::migrations::create::{FutureMigration, MigrationKey};
+use crate::migrations::create::{CurrentMigration, FutureMigration, MigrationKey, MigrationToText};
 use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migration;
-use crate::migrations::options::CreateMigration;
 use crate::migrations::status::migrations_applied;
 use crate::migrations::timeout;
 use crate::print::{msg, Highlight};
 use crate::question::Confirm;
 
-struct TwoStageRemove<'a> {
-    ctx: &'a Context,
-    filenames: Vec<PathBuf>,
-}
-
-pub async fn main(
-    cli: &mut Connection,
+pub async fn run(
+    cmd: &create::Command,
+    conn: &mut Connection,
     _options: &Options,
-    create: &CreateMigration,
 ) -> anyhow::Result<()> {
-    let ctx = Context::for_migration_config(&create.cfg, create.non_interactive).await?;
+    let ctx = Context::for_migration_config(&cmd.cfg, cmd.non_interactive).await?;
     let migrations = migration::read_all(&ctx, true).await?;
-    let Some(db_rev) = migrations_applied(cli, &ctx, &migrations).await? else {
+    let Some(db_rev) = migrations_applied(conn, &ctx, &migrations).await? else {
         return Err(ExitCode::new(3).into());
     };
-    let needs_fixup = needs_fixup(cli, &ctx).await?;
+    let needs_fixup = needs_fixup(conn, &ctx).await?;
 
     if db_rev == "initial" {
         msg!("No migrations exist. No actions will be taken.");
@@ -48,19 +42,19 @@ pub async fn main(
         msg!("Only a single revision exists. No actions will be taken.");
         return Ok(());
     }
-    if !create.non_interactive {
-        cli.ping_while(confirm_squashing(&db_rev)).await?;
+    if !cmd.non_interactive {
+        conn.ping_while(confirm_squashing(&db_rev)).await?;
     }
 
-    let squashed = create_revision(cli, &ctx, create).await?;
+    let squashed = create_revision(cmd, conn, &ctx).await?;
 
     let key = MigrationKey::Fixup {
         target_revision: squashed.id()?.to_owned(),
     };
     let fixup = if needs_fixup {
-        if create.non_interactive || cli.ping_while(want_fixup()).await? {
+        if cmd.non_interactive || conn.ping_while(want_fixup()).await? {
             let parent = Some(&db_rev[..]);
-            Some(normal_migration(cli, &ctx, key, parent, create).await?)
+            Some(normal_migration(conn, &ctx, key, parent, cmd).await?)
         } else {
             None
         }
@@ -80,6 +74,11 @@ pub async fn main(
     Ok(())
 }
 
+struct TwoStageRemove<'a> {
+    ctx: &'a Context,
+    filenames: Vec<PathBuf>,
+}
+
 async fn needs_fixup(cli: &mut Connection, ctx: &Context) -> anyhow::Result<bool> {
     execute_start_migration(ctx, cli).await?;
     async_try! {
@@ -97,26 +96,26 @@ async fn needs_fixup(cli: &mut Connection, ctx: &Context) -> anyhow::Result<bool
 }
 
 async fn create_revision(
-    cli: &mut Connection,
+    cmd: &create::Command,
+    conn: &mut Connection,
     ctx: &Context,
-    create: &CreateMigration,
 ) -> anyhow::Result<FutureMigration> {
     // TODO(tailhook) reset schema to initial
-    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    let old_timeout = timeout::inhibit_for_transaction(conn).await?;
     async_try! {
         async {
-            execute(cli, "START MIGRATION REWRITE", None).await?;
+            execute(conn, "START MIGRATION REWRITE", None).await?;
             async_try! {
                 async {
-                    first_migration(cli, ctx, create).await
+                    first_migration(conn, ctx, cmd).await
                 },
                 finally async {
-                    execute_if_connected(cli, "ABORT MIGRATION REWRITE").await
+                    execute_if_connected(conn, "ABORT MIGRATION REWRITE").await
                 }
             }
         },
         finally async {
-            timeout::restore_for_transaction(cli, old_timeout).await
+            timeout::restore_for_transaction(conn, old_timeout).await
         }
     }
 }

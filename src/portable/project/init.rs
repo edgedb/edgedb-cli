@@ -1179,7 +1179,7 @@ async fn migrate(inst: &project::Handle<'_>, ask_for_running: bool) -> anyhow::R
 
 async fn migrate_async(inst: &project::Handle<'_>, ask_for_running: bool) -> anyhow::Result<()> {
     use crate::commands::Options;
-    use crate::migrations::options::{Migrate, MigrationConfig};
+    use crate::migrations::options::MigrationConfig;
 
     #[derive(Clone, Copy)]
     enum Action {
@@ -1242,14 +1242,8 @@ async fn migrate_async(inst: &project::Handle<'_>, ask_for_running: bool) -> any
         conn = inst.get_connection().await?;
     }
 
-    migrations::migrate(
-        &mut conn,
-        &Options {
-            command_line: true,
-            styler: None,
-            conn_params: Connector::new(inst.get_builder()?.build_env().await.map_err(Into::into)),
-        },
-        &Migrate {
+    migrations::apply::run(
+        &migrations::apply::Command {
             cfg: MigrationConfig {
                 schema_dir: Some(inst.project_dir.join(&inst.schema_dir)),
             },
@@ -1258,6 +1252,12 @@ async fn migrate_async(inst: &project::Handle<'_>, ask_for_running: bool) -> any
             dev_mode: false,
             single_transaction: false,
             conn: None,
+        },
+        &mut conn,
+        &Options {
+            command_line: true,
+            styler: None,
+            conn_params: Connector::new(inst.get_builder()?.build_env().await.map_err(Into::into)),
         },
     )
     .await?;

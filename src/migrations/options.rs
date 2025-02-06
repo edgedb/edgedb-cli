@@ -4,6 +4,7 @@ use clap::ValueHint;
 
 #[cfg(doc)]
 use crate::branding::BRANDING;
+use crate::migrations;
 use crate::options::ConnectionOptions;
 use crate::portable::repository::Channel;
 use crate::portable::ver;
@@ -24,9 +25,9 @@ pub struct Migration {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum MigrationCmd {
     /// Apply migration from latest migration script.
-    Apply(Box<Migrate>),
+    Apply(Box<migrations::apply::Command>),
     /// Create migration script inside `/migrations`.
-    Create(CreateMigration),
+    Create(migrations::create::Command),
     /// Show current migration status.
     Status(ShowStatus),
     /// Show all migration versions.
@@ -58,78 +59,6 @@ pub struct MigrationConfig {
     /// in `{gel,edgedb}.toml`.
     #[arg(long, value_hint=ValueHint::DirPath)]
     pub schema_dir: Option<PathBuf>,
-}
-
-#[derive(clap::Args, Clone, Debug)]
-pub struct CreateMigration {
-    #[command(flatten)]
-    pub cfg: MigrationConfig,
-    /// Squash all schema migrations into one and optionally provide a fixup migration.
-    ///
-    /// Note: this discards data migrations.
-    #[arg(long)]
-    pub squash: bool,
-    /// Do not ask questions. By default works only if "safe" changes are
-    /// to be done (those for which [`BRANDING`] has a high degree of confidence).
-    /// This safe default can be overridden with `--allow-unsafe`.
-    #[arg(long)]
-    pub non_interactive: bool,
-    /// Apply the most probable unsafe changes in case there are ones. This
-    /// is only useful in non-interactive mode.
-    #[arg(long)]
-    pub allow_unsafe: bool,
-    /// Create a new migration even if there are no changes (use this for
-    /// data-only migrations).
-    #[arg(long)]
-    pub allow_empty: bool,
-    /// Print queries executed.
-    #[arg(long, hide = true)]
-    pub debug_print_queries: bool,
-    /// Show error details.
-    #[arg(long, hide = true)]
-    pub debug_print_err: bool,
-}
-
-#[derive(clap::Args, Clone, Debug)]
-pub struct Migrate {
-    #[command(flatten)]
-    pub conn: Option<ConnectionOptions>,
-
-    #[command(flatten)]
-    pub cfg: MigrationConfig,
-    /// Do not print messages, only indicate success by exit status
-    #[arg(long)]
-    pub quiet: bool,
-
-    /// Upgrade to a specified revision.
-    ///
-    /// A unique revision prefix can be specified instead of a full
-    /// revision name.
-    ///
-    /// If this revision is applied, the command is a no-op. The command
-    /// ensures that the revision is present, but additional applied revisions
-    /// are not considered an error.
-    #[arg(long, conflicts_with = "dev_mode")]
-    pub to_revision: Option<String>,
-
-    /// Dev mode is used to temporarily apply schema on top of those found in
-    /// the migration history. Usually used for testing purposes, as well as
-    /// `edgedb watch` which creates a dev mode migration script each time
-    /// a file is saved by a user.
-    ///
-    /// Current dev mode migrations can be seen with the following query:
-    ///
-    /// `select schema::Migration {*} filter .generated_by = schema::MigrationGeneratedBy.DevMode;`
-    ///
-    /// `edgedb migration create` followed by `edgedb migrate --dev-mode` will
-    /// then finalize a migration by turning existing dev mode migrations into
-    /// a regular `.edgeql` file, after which the above query will return nothing.
-    #[arg(long)]
-    pub dev_mode: bool,
-
-    /// Runs the migration(s) in a single transaction.
-    #[arg(long = "single-transaction")]
-    pub single_transaction: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]

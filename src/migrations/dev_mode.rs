@@ -10,17 +10,53 @@ use crate::async_try;
 use crate::branding::BRANDING;
 use crate::bug;
 use crate::commands::Options;
+use crate::migrations::apply::{apply_migrations, apply_migrations_inner};
 use crate::migrations::context::Context;
+use crate::migrations::create;
 use crate::migrations::create::{execute_start_migration, unsafe_populate};
 use crate::migrations::create::{first_migration, normal_migration};
 use crate::migrations::create::{write_migration, MigrationKey};
 use crate::migrations::create::{CurrentMigration, FutureMigration};
 use crate::migrations::edb::{execute, execute_if_connected, query_row};
-use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
-use crate::migrations::options::CreateMigration;
 use crate::migrations::timeout;
 use crate::portable::ver;
+
+pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> anyhow::Result<()> {
+    if !check_client(cli).await? {
+        anyhow::bail!(
+            "Dev mode is not supported on {BRANDING} {}. Please upgrade.",
+            cli.get_version().await?
+        );
+    }
+    let migrations = migration::read_all(ctx, true).await?;
+    let db_migration = get_db_migration(cli).await?;
+    match select_mode(cli, &migrations, db_migration.as_deref()).await? {
+        Mode::Normal { skip } => {
+            log::info!("Skipping {} revisions.", skip);
+            let migrations = migrations
+                .get_range(skip..)
+                .ok_or_else(|| bug::error("`skip` is out of range"))?;
+            if !migrations.is_empty() {
+                bar.set_message("applying migrations");
+                apply_migrations(cli, migrations, ctx, false).await?;
+            }
+            bar.set_message("calculating diff");
+            log::info!("Calculating schema diff.");
+            migrate_to_schema(cli, ctx).await?;
+        }
+        Mode::Rebase => {
+            log::info!("Calculating schema diff.");
+            bar.set_message("calculating diff");
+            migrate_to_schema(cli, ctx).await?;
+            log::info!("Now rebasing on top of filesystem migrations.");
+            bar.set_message("rebasing migrations");
+            rebase_to_schema(cli, ctx, &migrations).await?;
+        }
+    }
+    bar.println("Schema up to date.");
+    Ok(())
+}
 
 enum Mode {
     Normal { skip: usize },
@@ -55,41 +91,6 @@ mod ddl {
 
 pub async fn check_client(cli: &mut Connection) -> anyhow::Result<bool> {
     ver::check_client(cli, &MINIMUM_VERSION).await
-}
-
-pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> anyhow::Result<()> {
-    if !check_client(cli).await? {
-        anyhow::bail!(
-            "Dev mode is not supported on {BRANDING} {}. Please upgrade.",
-            cli.get_version().await?
-        );
-    }
-    let migrations = migration::read_all(ctx, true).await?;
-    let db_migration = get_db_migration(cli).await?;
-    match select_mode(cli, &migrations, db_migration.as_deref()).await? {
-        Mode::Normal { skip } => {
-            log::info!("Skipping {} revisions.", skip);
-            let migrations = migrations
-                .get_range(skip..)
-                .ok_or_else(|| bug::error("`skip` is out of range"))?;
-            if !migrations.is_empty() {
-                bar.set_message("applying migrations");
-                apply_migrations(cli, migrations, ctx, false).await?;
-            }
-            bar.set_message("calculating diff");
-            log::info!("Calculating schema diff.");
-            migrate_to_schema(cli, ctx).await?;
-        }
-        Mode::Rebase => {
-            log::info!("Calculating schema diff.");
-            bar.set_message("calculating diff");
-            migrate_to_schema(cli, ctx).await?;
-            log::info!("Now rebasing on top of filesystem migrations.");
-            bar.set_message("rebasing migrations");
-            rebase_to_schema(cli, ctx, &migrations).await?;
-        }
-    }
-    Ok(())
 }
 
 async fn select_mode(
@@ -248,47 +249,47 @@ pub async fn rebase_to_schema(
 }
 
 async fn create_in_rewrite(
-    ctx: &Context,
-    cli: &mut Connection,
+    cmd: &create::Command,
+    conn: &mut Connection,
     migrations: &IndexMap<String, MigrationFile>,
-    create: &CreateMigration,
+    ctx: &Context,
 ) -> anyhow::Result<FutureMigration> {
-    apply_migrations_inner(cli, migrations, false).await?;
+    apply_migrations_inner(conn, migrations, false).await?;
     if migrations.is_empty() {
-        first_migration(cli, ctx, create).await
+        first_migration(conn, ctx, cmd).await
     } else {
         let key = MigrationKey::Index((migrations.len() + 1) as u64);
         let parent = migrations.keys().last().map(|x| &x[..]);
-        normal_migration(cli, ctx, key, parent, create).await
+        normal_migration(conn, ctx, key, parent, cmd).await
     }
 }
 
 pub async fn create(
-    cli: &mut Connection,
-    ctx: &Context,
+    cmd: &create::Command,
+    conn: &mut Connection,
     _options: &Options,
-    create: &CreateMigration,
+    ctx: &Context,
 ) -> anyhow::Result<()> {
     let migrations = migration::read_all(ctx, true).await?;
 
-    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    let old_timeout = timeout::inhibit_for_transaction(conn).await?;
     let migration = async_try! {
         async {
-            execute(cli, "START MIGRATION REWRITE", None).await?;
+            execute(conn, "START MIGRATION REWRITE", None).await?;
             async_try! {
                 async {
-                    create_in_rewrite(ctx, cli, &migrations, create).await
+                    create_in_rewrite(cmd, conn,  &migrations, ctx,).await
                 },
                 finally async {
-                    execute_if_connected(cli, "ABORT MIGRATION REWRITE").await
+                    execute_if_connected(conn, "ABORT MIGRATION REWRITE").await
                         .context("migration rewrite cleanup")
                 }
             }
         },
         finally async {
-            timeout::restore_for_transaction(cli, old_timeout).await
+            timeout::restore_for_transaction(conn, old_timeout).await
         }
     }?;
-    write_migration(ctx, &migration, !create.non_interactive).await?;
+    write_migration(ctx, &migration, !cmd.non_interactive).await?;
     Ok(())
 }
