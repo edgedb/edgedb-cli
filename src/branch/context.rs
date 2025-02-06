@@ -89,8 +89,8 @@ impl Context {
             return Ok(());
         };
 
+        // if we are in a project, update the stash/database
         if let Some(project) = &self.project {
-            // only place to store the branch is the database file in the project
             let stash_path = get_stash_path(&project.root)?.join("database");
 
             // ensure that the temp file is created in the same directory as the 'database' file
@@ -98,6 +98,7 @@ impl Context {
             fs::write(&tmp, branch)?;
             fs::rename(&tmp, &stash_path)?;
         } else {
+            // otherwise, update credentials.json
             let name = ensure_local_instance(instance_name)?;
 
             let path = credentials::path(name)?;
