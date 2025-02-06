@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
+use crate::portable::options::InstanceName;
 use crate::repl::{self, VectorLimit};
 
 use const_format::concatcp;
@@ -327,6 +328,9 @@ pub struct WipeDatabase {
     /// Drop database without confirming
     #[arg(long)]
     pub non_interactive: bool,
+
+    #[arg(from_global)]
+    pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Args, Clone, Debug)]

@@ -10,8 +10,8 @@ pub async fn run(
     connector: &mut Connector,
 ) -> anyhow::Result<branch::CommandResult> {
     if !context.can_update_current_branch() {
-        eprintln!("Cannot switch branches without specifying the instance");
-        eprintln!("Either change directory to a project with a linked instance or use --instance argument.");
+        print::error!("Cannot switch branches without specifying the instance");
+        print::msg!("Either change directory to a project or use --instance argument.");
         anyhow::bail!("");
     }
 

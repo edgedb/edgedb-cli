@@ -84,7 +84,7 @@ fn main() {
             "credentials_file_not_found",
             "credentials file.*No such file",
         ),
-        ("project_not_initialised", "project is not initialized"),
+        ("project_not_initialised", "not initialized"),
         ("secret_key_not_found", "NoCloudConfigFound"),
         ("invalid_secret_key", "Illegal JWT token"),
     ]);
