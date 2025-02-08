@@ -14,7 +14,7 @@ use tokio::task::spawn_blocking as unblock;
 
 use edgedb_cli_derive::IntoArgs;
 
-use crate::cli;
+use crate::{cli, watch};
 use crate::cli::options::CliCommand;
 
 use crate::branch;
@@ -32,7 +32,6 @@ use crate::portable::project;
 use crate::print::{self, AsRelativeToCurrentDir, Highlight};
 use crate::repl::{InputLanguage, OutputFormat};
 use crate::tty_password;
-use crate::watch::WatchCommand;
 
 const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
@@ -210,7 +209,7 @@ pub struct ConnectionOptions {
     /// Useful when the server hostname cannot be used as it
     /// does not resolve, or resolves to a wrong IP address,
     /// and a different name or IP address is used in `--host`.
-    #[arg(long)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP),)]
     #[arg(global = true)]
     pub tls_server_name: Option<String>,
 
@@ -380,9 +379,9 @@ pub enum Command {
     _SelfInstall(cli::install::CliInstall),
     /// [`BRANDING_CLOUD`] authentication
     Cloud(CloudCommand),
-    /// Start a long-running process that watches for changes in schema files in
-    /// a project's ``dbschema`` directory, applying them in real time.
-    Watch(WatchCommand),
+    /// Start a long-running process that watches the project directory
+    /// and runs scripts
+    Watch(watch::Command),
     /// Manage branches
     Branch(branch::Command),
     /// Generate a `SCRAM-SHA-256` hash for a password.

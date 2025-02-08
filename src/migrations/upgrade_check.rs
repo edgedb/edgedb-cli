@@ -304,7 +304,12 @@ pub async fn watch_loop(
     loop {
         // note we don't wait for interrupt here because if interrupt happens
         // the `background_for` method of the process takes care of it.
-        cli.ping_while(watcher.wait(retry_timeout)).await?;
+        let event = cli.ping_while(watcher.wait(retry_timeout)).await;
+        match event {
+            watch::Event::Changed(_) | watch::Event::Retry => {}
+            watch::Event::Abort => return Ok(()),
+        };
+
         retry_timeout = None;
         match single_check(ctx, cli).await {
             Ok(CheckResult::Okay) => {

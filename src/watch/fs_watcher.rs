@@ -32,16 +32,16 @@ impl FsWatcher {
     }
 
     /// Waits for either changes in fs, timeout or interrupt signal
-    pub async fn wait(&mut self, timeout: Option<Duration>) -> anyhow::Result<HashSet<PathBuf>> {
+    pub async fn wait(&mut self, timeout: Option<Duration>) -> Event {
         let ctrl_c = Interrupt::ctrl_c();
         tokio::select! {
-            changes = self.wait_for_changes() => Ok(changes),
-            _ = wait_for_timeout(timeout) => Ok(HashSet::default()),
-            res = ctrl_c.wait_result() => res,
+            changes = self.wait_for_changes() => Event::Changed(changes),
+            _ = wait_for_timeout(timeout) => Event::Retry,
+            _ = ctrl_c.wait() => Event::Abort,
         }
     }
 
-    /// Wait for changes in fs and debounce many consequent writes into a single write.
+    /// Wait for changes in fs and debounce many consequent writes into a single event.
     async fn wait_for_changes(&mut self) -> HashSet<PathBuf> {
         let mut changed_paths = HashSet::new();
 
@@ -53,6 +53,8 @@ impl FsWatcher {
 
                 // on new changed path
                 paths = self.rx.recv() => {
+                    dbg!(&paths);
+
                     // record the paths
                     if let Some(paths) = paths {
                         changed_paths.extend(paths);
@@ -97,4 +99,15 @@ impl notify::EventHandler for WatchHandler {
             Err(e) => log::warn!("Error watching filesystem: {:#}", e),
         }
     }
+}
+
+pub enum Event {
+    /// Files have changed
+    Changed(HashSet<PathBuf>),
+
+    /// Timeout has been reached
+    Retry,
+
+    /// Abort watching
+    Abort,
 }
