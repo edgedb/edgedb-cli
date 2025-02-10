@@ -49,12 +49,16 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
 
     // TODO: watch only directories that are needed, not the whole project
     print::msg!(
-        "Monitoring {} for changes in:",
+        "{} {} for changes in:",
+        "Monitoring".emphasized(),
         ctx.project.location.root.as_relative().display()
     );
+    print::msg!("");
     for m in &matchers {
-        print::msg!("- {}: {}", m.glob, m.target);
+        print::msg!("  {}: {}", m.glob, m.target.to_string().muted());
     }
+    print::msg!("");
+
     watcher.watch(&ctx.project.location.root, notify::RecursiveMode::Recursive)?;
     let schema_dir = ctx.project.manifest.project().get_schema_dir();
     if cmd.migrate && !schema_dir.starts_with(&ctx.project.location.root) {
@@ -115,7 +119,11 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
             // print
             print::msg!(
                 "{}",
-                format!("--- {}: {} ---", matcher.glob, matcher.target).muted()
+                format!(
+                    "--- {}: {} ---",
+                    matcher.glob,
+                    matcher.target.to_string().muted()
+                )
             );
             if cmd.verbose {
                 print::msg!("{}", format!("  triggered by: {reason}").muted());
@@ -144,6 +152,8 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
 
             matcher.last_failed = !success;
         }
+
+        print::msg!(""); // a bit of space between runs
     }
 
     if cmd.migrate {
@@ -216,9 +226,10 @@ fn assemble_matchers(cmd: &Command, ctx: &WatchContext) -> anyhow::Result<Vec<Ma
         let schema_dir = schema_dir
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("bad path: {}", schema_dir.display()))?;
-        let glob = globset::Glob::new(schema_dir)?;
+        let glob_str = format!("{schema_dir}/**/*.{{gel,esdl}}");
+        let glob = globset::Glob::new(&glob_str)?;
         matchers.push(Matcher {
-            glob: schema_dir.to_string(),
+            glob: glob_str,
             matcher: glob.compile_matcher(),
             target: Target::MigrateDevMode,
             last_failed: false,

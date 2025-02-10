@@ -53,8 +53,6 @@ impl FsWatcher {
 
                 // on new changed path
                 paths = self.rx.recv() => {
-                    dbg!(&paths);
-
                     // record the paths
                     if let Some(paths) = paths {
                         changed_paths.extend(paths);
