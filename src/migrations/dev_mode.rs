@@ -38,12 +38,12 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> 
                 .get_range(skip..)
                 .ok_or_else(|| bug::error("`skip` is out of range"))?;
             if !migrations.is_empty() {
-                bar.set_message("applying migrations");
+                bar.set_message("Applying migrations");
                 apply_migrations(cli, migrations, ctx, false).await?;
                 bar.println("Migrations applied");
             }
 
-            bar.set_message("calculating diff");
+            bar.set_message("Calculating diff");
             log::info!("Calculating schema diff");
             let applied_changes = migrate_to_schema(cli, ctx).await?;
             if applied_changes {
@@ -53,12 +53,12 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> 
             }
         }
         Mode::Rebase => {
-            bar.set_message("calculating diff");
+            bar.set_message("Calculating diff");
             log::info!("Calculating schema diff");
             let applied_changes = migrate_to_schema(cli, ctx).await?;
 
             log::info!("Now rebasing on top of filesystem migrations.");
-            bar.set_message("rebasing migrations");
+            bar.set_message("Rebasing migrations");
             rebase_to_schema(cli, ctx, &migrations).await?;
             if applied_changes {
                 bar.println("Migrations applied via rebase. There are pending --dev-mode changes.")

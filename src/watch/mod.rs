@@ -46,7 +46,8 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
 
     if cmd.migrate {
         print::msg!(
-            "Hint: --migrate will apply any schema changes to the database. When done use:"
+            "Hint: --migrate will apply any changes from your schema files to the database. \
+            When ready to commit your changes, use:"
         );
         print::msg!(
             "1) `{BRANDING_CLI_CMD} migration create` to write those changes to a migration file,"

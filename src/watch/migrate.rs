@@ -16,7 +16,7 @@ impl super::WatchContext {
 
         let bar = ProgressBar::new_spinner();
         bar.enable_steady_tick(Duration::from_millis(100));
-        bar.set_message("connecting");
+        bar.set_message("Connecting");
         let mut cli = self.connector.connect().await?;
 
         let old_state = cli.set_ignore_error_state();
