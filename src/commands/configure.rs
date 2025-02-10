@@ -116,6 +116,15 @@ pub async fn configure(
             parameter: S::DefaultStatisticsTarget(ConfigStr { value }),
         }) => set(cli, "default_statistics_target", None, value).await,
         C::Set(Set {
+            parameter: S::DefaultTransactionIsolation(ConfigStr { value }),
+        }) => set(cli, "default_transcation_isolation", None, value).await,
+        C::Set(Set {
+            parameter: S::DefaultTransactionDeferrable(ConfigStr { value }),
+        }) => set(cli, "default_transaction_deferrable", None, value).await,
+        C::Set(Set {
+            parameter: S::DefaultTransactionAccessMode(ConfigStr { value }),
+        }) => set(cli, "default_transaction_access_mode", None, value).await,
+        C::Set(Set {
             parameter: S::EffectiveIoConcurrency(ConfigStr { value }),
         }) => set(cli, "effective_io_concurrency", None, value).await,
         C::Set(Set {
@@ -223,6 +232,9 @@ pub async fn configure(
                 C::MaintenanceWorkMem => "maintenance_work_mem",
                 C::EffectiveCacheSize => "effective_cache_size",
                 C::DefaultStatisticsTarget => "default_statistics_target",
+                C::DefaultTransactionAccessMode => "default_transaction_access_mode",
+                C::DefaultTransactionDeferrable => "default_transaction_deferrable",
+                C::DefaultTransactionIsolation => "default_transaction_isolation",
                 C::EffectiveIoConcurrency => "effective_io_concurrency",
                 C::SessionIdleTimeout => "session_idle_timeout",
                 C::SessionIdleTransactionTimeout => "session_idle_transaction_timeout",
