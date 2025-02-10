@@ -53,7 +53,7 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
             "1) `{BRANDING_CLI_CMD} migration create` to write those changes to a migration file,"
         );
         print::msg!(
-            "2) `{BRANDING_CLI_CMD} migration apply --dev-mode` to replace all synced \
+            "2) `{BRANDING_CLI_CMD} migrate --dev-mode` to replace all synced \
             changes with the migration.\n"
         );
     }
