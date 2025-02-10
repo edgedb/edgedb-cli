@@ -14,8 +14,8 @@ use tokio::task::spawn_blocking as unblock;
 
 use edgedb_cli_derive::IntoArgs;
 
-use crate::{cli, watch};
 use crate::cli::options::CliCommand;
+use crate::{cli, watch};
 
 use crate::branch;
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, MANIFEST_FILE_DISPLAY_NAME};

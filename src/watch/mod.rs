@@ -173,7 +173,7 @@ enum Target {
     MigrateDevMode,
 }
 
-impl<'a> std::fmt::Display for Target {
+impl std::fmt::Display for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Target::Script(s) => f.write_str(s),
@@ -185,7 +185,7 @@ impl<'a> std::fmt::Display for Target {
     }
 }
 
-fn assemble_matchers<'c>(cmd: &Command, ctx: &'c WatchContext) -> anyhow::Result<Vec<Matcher>> {
+fn assemble_matchers(cmd: &Command, ctx: &WatchContext) -> anyhow::Result<Vec<Matcher>> {
     let watch = ctx.project.manifest.watch.as_ref();
     let files = match watch.and_then(|x| x.files.as_ref()) {
         Some(files) => files.clone(),
