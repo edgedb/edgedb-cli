@@ -1,4 +1,3 @@
-mod files;
 mod fs_watcher;
 mod migrate;
 
@@ -45,9 +44,19 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
     // determine what we will be watching
     let mut matchers = assemble_matchers(cmd, &ctx)?;
 
-    let mut watcher = fs_watcher::FsWatcher::new()?;
+    if cmd.migrate {
+        print::msg!(
+            "Hint: --migrate will apply any schema changes to the database. When done use:"
+        );
+        print::msg!(
+            "1) `{BRANDING_CLI_CMD} migration create` to write those changes to a migration file,"
+        );
+        print::msg!(
+            "2) `{BRANDING_CLI_CMD} migration apply --dev-mode` to replace all synced \
+            changes with the migration.\n"
+        );
+    }
 
-    // TODO: watch only directories that are needed, not the whole project
     print::msg!(
         "{} {} for changes in:",
         "Monitoring".emphasized(),
@@ -58,6 +67,9 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
         print::msg!("  {}: {}", m.glob, m.target.to_string().muted());
     }
     print::msg!("");
+
+    let mut watcher = fs_watcher::FsWatcher::new()?;
+    // TODO: watch only directories that are needed, not the whole project
 
     watcher.watch(&ctx.project.location.root, notify::RecursiveMode::Recursive)?;
     let schema_dir = ctx.project.manifest.project().get_schema_dir();

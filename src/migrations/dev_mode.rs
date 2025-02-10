@@ -56,14 +56,15 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> 
             bar.set_message("calculating diff");
             log::info!("Calculating schema diff");
             let applied_changes = migrate_to_schema(cli, ctx).await?;
-            if applied_changes {
-                bar.println("Changes applied");
-            }
 
             log::info!("Now rebasing on top of filesystem migrations.");
             bar.set_message("rebasing migrations");
             rebase_to_schema(cli, ctx, &migrations).await?;
-            bar.println("Rebased.")
+            if applied_changes {
+                bar.println("Migrations applied via rebase. There are pending --dev-mode changes.")
+            } else {
+                bar.println("Migrations applied via rebase.");
+            }
         }
     }
     Ok(())
