@@ -547,6 +547,26 @@ pub enum ValueParameter {
     /// Corresponds to the PostgreSQL configuration parameter of the same name.
     DefaultStatisticsTarget(ConfigStr),
 
+    /// Controls the default isolation level of each new transaction,
+    /// including implicit transactions. Defaults to `Serializable`.
+    /// Note that changing this to a lower isolation level implies
+    /// that the transactions are also read-only by default regardless
+    /// of the value of the `default_transaction_access_mode` setting.
+    DefaultTransactionIsolation(ConfigStr),
+
+    /// Controls the default deferrable status of each new transaction.
+    /// It currently has no effect on read-write transactions or those
+    /// operating at isolation levels lower than `Serializable`.
+    /// The default is `NotDeferrable`.
+    DefaultTransactionDeferrable(ConfigStr),
+
+    // Controls the default read-only status of each new transaction,
+    // including implicit transactions. Defaults to `ReadWrite`.
+    // Note that if `default_transaction_isolation` is set to any value
+    // other than Serializable this parameter is implied to be
+    // `ReadOnly` regardless of the actual value.
+    DefaultTransactionAccessMode(ConfigStr),
+
     /// Sets the number of concurrent disk I/O operations that PostgreSQL
     /// expects can be executed simultaneously.
     ///
@@ -641,6 +661,12 @@ pub enum ConfigParameter {
     EffectiveCacheSize,
     /// Reset PostgreSQL configuration parameter of the same name
     DefaultStatisticsTarget,
+    /// Reset PostgreSQL configuration parameter of the same name
+    DefaultTransactionIsolation,
+    /// Reset PostgreSQL configuration parameter of the same name
+    DefaultTransactionDeferrable,
+    /// Reset PostgreSQL configuration parameter of the same name
+    DefaultTransactionAccessMode,
     /// Reset PostgreSQL configuration parameter of the same name
     EffectiveIoConcurrency,
     /// Reset session idle timeout
