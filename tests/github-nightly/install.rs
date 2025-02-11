@@ -7,8 +7,9 @@ use crate::measure::Time;
 
 #[test_matrix(
     [
+        Distro::Ubuntu("noble"),
+        Distro::Ubuntu("jammy"),
         Distro::Ubuntu("focal"),
-        Distro::Ubuntu("bionic"),
         Distro::Debian("bookworm"),
         Distro::Debian("bullseye"),
     ],
