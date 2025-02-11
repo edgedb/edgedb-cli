@@ -316,13 +316,13 @@ pub fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
     Ok(Some(inst.trim().into()))
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Context {
     pub location: Location,
     pub manifest: manifest::Manifest,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Location {
     pub root: PathBuf,
     pub manifest: PathBuf,
@@ -353,6 +353,10 @@ pub async fn load_ctx(override_dir: Option<&Path>) -> anyhow::Result<Option<Cont
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn load_ctx_at(location: Location) -> anyhow::Result<Context> {
+    load_ctx_at_async(location).await
+}
+
+pub async fn load_ctx_at_async(location: Location) -> anyhow::Result<Context> {
     let manifest = manifest::read(&location.manifest)?;
     Ok(Context { location, manifest })
 }

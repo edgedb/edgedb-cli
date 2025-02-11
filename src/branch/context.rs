@@ -9,6 +9,7 @@ use crate::portable::project;
 use std::fs;
 use std::sync::Mutex;
 
+#[derive(Debug)]
 pub struct Context {
     /// Instance name provided either with --instance or inferred from the project.
     instance_name: Option<InstanceName>,
@@ -26,7 +27,7 @@ pub struct Context {
     current_branch: Option<String>,
 
     /// Project manifest cache
-    manifest_cache: Mutex<Option<Option<project::Context>>>,
+    project_ctx_cache: Mutex<Option<project::Context>>,
 }
 
 impl Context {
@@ -35,7 +36,7 @@ impl Context {
             instance_name: None,
             current_branch: None,
             project: None,
-            manifest_cache: Mutex::new(None),
+            project_ctx_cache: Mutex::new(None),
         };
 
         // use instance name provided with --instance
@@ -112,15 +113,18 @@ impl Context {
     }
 
     pub async fn get_project(&self) -> anyhow::Result<Option<project::Context>> {
-        if let Some(mani) = &*self.manifest_cache.lock().unwrap() {
-            return Ok(mani.clone());
+        if let Some(ctx) = &*self.project_ctx_cache.lock().unwrap() {
+            return Ok(Some(ctx.clone()));
         }
 
-        let manifest = project::load_ctx(None).await?;
+        let Some(location) = &self.project else {
+            return Ok(None);
+        };
+        let ctx = project::load_ctx_at_async(location.clone()).await?;
 
-        let mut cache_lock = self.manifest_cache.lock().unwrap();
-        *cache_lock = Some(manifest.clone());
-        Ok(manifest)
+        let mut cache_lock = self.project_ctx_cache.lock().unwrap();
+        *cache_lock = Some(ctx.clone());
+        Ok(Some(ctx))
     }
 }
 

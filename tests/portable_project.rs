@@ -359,6 +359,20 @@ fn hooks() {
 
     let branch_log = fs::read_to_string(branch_log_file).unwrap();
     assert_eq!(branch_log, "another\ndefault-branch-name\n");
+
+    // branch switch, but with explict --instance arg
+    // This should prevent hooks from being executed, since
+    // this action is not executed "on a project", but "on an instance".
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("--instance=inst2")
+        .arg("branch")
+        .arg("switch")
+        .arg("another")
+        .assert()
+        .context("branch-switch-3", "")
+        .success()
+        .stderr(ContainsHooks { expected: &[] });
 }
 
 #[derive(Debug)]
