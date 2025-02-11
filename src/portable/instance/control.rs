@@ -23,7 +23,7 @@ use crate::process;
 pub struct Start {
     /// Name of instance to start.
     #[arg(hide = true)]
-    #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
+    #[arg(value_hint=clap::ValueHint::Other)]
     pub name: Option<InstanceName>,
 
     #[arg(from_global)]
@@ -298,7 +298,11 @@ fn set_inheritable(file: &impl std::os::unix::io::AsRawFd) -> anyhow::Result<()>
 }
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
+    // Special case: instance name is allowed to be positional for start, because start
+    // is used in systemd services and cannot be changed.
+    // Maybe we should make "fixup" that updates those services?
+    let name = options.instance.clone().or_else(|| options.name.clone());
+    let name = match instance_arg(&None, &name)? {
         InstanceName::Local(name) => {
             if cfg!(windows) {
                 return windows::start(options, &name);
