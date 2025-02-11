@@ -55,10 +55,8 @@ fn get_hook<'m>(
         "branch.wipe.after" => &hooks.branch.as_ref()?.wipe.as_ref()?.after,
         "migration.apply.before" => &hooks.migration.as_ref()?.apply.as_ref()?.before,
         "migration.apply.after" => &hooks.migration.as_ref()?.apply.as_ref()?.after,
-        "migration.rebase.before" => &hooks.migration.as_ref()?.rebase.as_ref()?.before,
-        "migration.rebase.after" => &hooks.migration.as_ref()?.rebase.as_ref()?.after,
-        "migration.merge.before" => &hooks.migration.as_ref()?.merge.as_ref()?.before,
-        "migration.merge.after" => &hooks.migration.as_ref()?.merge.as_ref()?.after,
+        "schema.update.before" => &hooks.schema.as_ref()?.update.as_ref()?.before,
+        "schema.update.after" => &hooks.schema.as_ref()?.update.as_ref()?.after,
         _ => panic!("unknown action"),
     };
     hook.as_deref()

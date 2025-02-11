@@ -66,6 +66,7 @@ pub struct Hooks {
     pub project: Option<ProjectHooks>,
     pub branch: Option<BranchHooks>,
     pub migration: Option<MigrationHooks>,
+    pub schema: Option<SchemaHooks>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -82,8 +83,11 @@ pub struct BranchHooks {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct MigrationHooks {
     pub apply: Option<Hook>,
-    pub rebase: Option<Hook>,
-    pub merge: Option<Hook>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct SchemaHooks {
+    pub update: Option<Hook>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
