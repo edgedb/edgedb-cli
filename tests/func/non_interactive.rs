@@ -345,12 +345,12 @@ fn branch_commands() {
         .arg(instance_name)
         .arg("branch")
         .arg("switch")
-        .arg("main")
+        .arg("test_branch_3")
         .assert()
         .context("switch", "switch instance branch")
         .success();
     assert_eq!(get_current_project_branch(), "main");
-    assert_eq!(get_current_instance_branch(instance_name), "main");
+    assert_eq!(get_current_instance_branch(instance_name), "test_branch_3");
 }
 
 #[test]
