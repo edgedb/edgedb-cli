@@ -361,7 +361,7 @@ pub fn get_platform_cli_packages(
     let packages = data
         .packages
         .iter()
-        .filter(|pkg| pkg.basename == "edgedb-cli")
+        .filter(|pkg| pkg.basename == "edgedb-cli" || pkg.basename == "gel-cli")
         .filter_map(|p| filter_cli_package(pkg_root, p))
         .collect();
     Ok(packages)
@@ -386,7 +386,7 @@ fn get_platform_server_packages(
     let packages = data
         .packages
         .iter()
-        .filter(|pkg| pkg.basename == "edgedb-server")
+        .filter(|pkg| pkg.basename == "edgedb-server" || pkg.basename == "gel-server")
         .filter_map(|p| filter_package(pkg_root, p, PackageType::TarZst))
         .collect();
     Ok(packages)
