@@ -48,7 +48,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -80,7 +80,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -112,7 +112,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -144,7 +144,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -176,7 +176,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -208,7 +208,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -240,7 +240,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -272,7 +272,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -304,7 +304,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -336,7 +336,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -368,7 +368,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -400,7 +400,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -432,7 +432,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "noble"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -464,7 +464,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "noble"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -496,7 +496,7 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -528,7 +528,7 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -560,7 +560,7 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -592,7 +592,7 @@ jobs:
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -624,7 +624,7 @@ jobs:
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
@@ -656,7 +656,7 @@ jobs:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
         BUILD_GENERIC: true
@@ -692,7 +692,7 @@ jobs:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 
         BUILD_GENERIC: true
@@ -757,7 +757,7 @@ jobs:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         METAPKG_GIT_CACHE: disabled
 
         BUILD_GENERIC: true
@@ -820,7 +820,7 @@ jobs:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_ARCH: "aarch64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         METAPKG_GIT_CACHE: disabled
 
         BUILD_GENERIC: true
@@ -870,7 +870,7 @@ jobs:
         PKG_PLATFORM: "win"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
 
       shell: bash
       run: |
@@ -2218,19 +2218,20 @@ jobs:
               *.zst) \
                 cp -a "${artifact}" "/tmp/" \
                 cd "/tmp/" \
-                zstd -d "${artifact}" -o "edgedb" \
+                zstd -d "${artifact}" -o "gel" \
                 ;; \
               *) \
-                cp -a "${artifact}" "/tmp/edgedb" \
+                cp -a "${artifact}" "/tmp/gel" \
                 ;; \
             esac \
           ) \
-          && chmod +x /tmp/edgedb
+          && chmod +x /tmp/gel
 
         FROM scratch
         COPY --from=download /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-        COPY --from=download /tmp/edgedb /usr/bin/edgedb
-        ENTRYPOINT ["/usr/bin/edgedb"]
+        COPY --from=download /tmp/gel /usr/bin/gel
+        RUN ln -s gel /usr/bin/edgedb
+        ENTRYPOINT ["/usr/bin/gel"]
         EOF
     - env:
         VERSION: "${{ needs.check-published-linux-x86_64.outputs.version }}"
@@ -2274,7 +2275,7 @@ jobs:
     - name: Publish Docker Image
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
-        name: edgedb/edgedb-cli
+        name: geldata/gel-cli
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "${{ steps.tags.outputs.tags }}"
