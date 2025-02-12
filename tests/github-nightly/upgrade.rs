@@ -5,8 +5,8 @@ use crate::docker::run_systemd;
 use crate::docker::{build_image, Context};
 use crate::measure::Time;
 
+#[test_case("test_jammy", &dock_ubuntu("jammy"))]
 #[test_case("test_focal", &dock_ubuntu("focal"))]
-#[test_case("test_bionic", &dock_ubuntu("bionic"))]
 #[test_case("test_bookworm", &dock_debian("bookworm"))]
 #[test_case("test_bullseye", &dock_debian("bullseye"))]
 fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
