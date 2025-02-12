@@ -1282,7 +1282,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#38d246d886953dcf3fa2ca233ff85cd002c2879d"
+source = "git+https://github.com/edgedb/edgeql#2bfe1e0d9ed774ca60c93e17ce62d3ea6426573b"
 dependencies = [
  "append-only-vec",
  "base32",
@@ -1295,7 +1295,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "snafu",
- "thiserror 1.0.69",
+ "thiserror 2.0.11",
  "unicode-width 0.1.14",
 ]
 

@@ -33,7 +33,7 @@ indexmap = {version = "2.4", features=["serde"]}
 heck = "0.5.0"
 
 [dependencies]
-edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
+edgeql-parser = {git = "https://github.com/edgedb/edgeql"}
 gel-protocol = {git = "https://github.com/edgedb/edgedb-rust/", features=["all-types"]}
 gel-derive = {git = "https://github.com/edgedb/edgedb-rust/"}
 gel-errors = {git = "https://github.com/edgedb/edgedb-rust/"}
