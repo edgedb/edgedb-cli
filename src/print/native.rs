@@ -13,7 +13,7 @@ pub trait FormatExt {
     fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error>;
 }
 
-fn format_string(s: &str, expanded: bool) -> String {
+pub fn format_string(s: &str, expanded: bool) -> String {
     let mut buf = String::with_capacity(s.len() + 2);
     buf.push('\'');
     for c in s.chars() {
