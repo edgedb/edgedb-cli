@@ -17,6 +17,7 @@ pub async fn run(
 
     if let Some(project) = &context.get_project().await? {
         hooks::on_action("branch.switch.before", project).await?;
+        hooks::on_action("schema.update.before", project).await?;
     }
 
     let current_branch = if let Some(mut connection) = connect_if_branch_exists(connector).await? {
@@ -76,6 +77,7 @@ pub async fn run(
 
     if let Some(project) = &context.get_project().await? {
         hooks::on_action("branch.switch.after", project).await?;
+        hooks::on_action("schema.update.after", project).await?;
     }
 
     Ok(branch::CommandResult {

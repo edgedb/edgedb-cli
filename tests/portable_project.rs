@@ -277,7 +277,9 @@ fn hooks() {
             expected: &[
                 "project.init.after",
                 "migration.apply.before",
+                "schema.update.before",
                 "migration.apply.after",
+                "schema.update.after",
             ],
         });
 
@@ -292,7 +294,12 @@ fn hooks() {
         .context("branch-switch", "")
         .success()
         .stderr(ContainsHooks {
-            expected: &["branch.switch.before", "branch.switch.after"],
+            expected: &[
+                "branch.switch.before",
+                "schema.update.before",
+                "branch.switch.after",
+                "schema.update.after",
+            ],
         });
 
     let branch_log = fs::read_to_string(branch_log_file).unwrap();
@@ -307,7 +314,12 @@ fn hooks() {
         .context("branch-merge", "")
         .success()
         .stderr(ContainsHooks {
-            expected: &["migration.apply.before", "migration.apply.after"],
+            expected: &[
+                "migration.apply.before",
+                "schema.update.before",
+                "migration.apply.after",
+                "schema.update.after",
+            ],
         });
 
     Command::new("edgedb")
@@ -320,7 +332,12 @@ fn hooks() {
         .context("branch-wipe", "")
         .success()
         .stderr(ContainsHooks {
-            expected: &["branch.wipe.before", "branch.wipe.after"],
+            expected: &[
+                "branch.wipe.before",
+                "schema.update.before",
+                "branch.wipe.after",
+                "schema.update.after",
+            ],
         });
 
     Command::new("edgedb")
@@ -332,11 +349,30 @@ fn hooks() {
         .context("branch-switch-2", "")
         .success()
         .stderr(ContainsHooks {
-            expected: &["branch.switch.before", "branch.switch.after"],
+            expected: &[
+                "branch.switch.before",
+                "schema.update.before",
+                "branch.switch.after",
+                "schema.update.after",
+            ],
         });
 
     let branch_log = fs::read_to_string(branch_log_file).unwrap();
     assert_eq!(branch_log, "another\ndefault-branch-name\n");
+
+    // branch switch, but with explict --instance arg
+    // This should prevent hooks from being executed, since
+    // this action is not executed "on a project", but "on an instance".
+    Command::new("edgedb")
+        .current_dir("tests/proj/project3")
+        .arg("--instance=inst2")
+        .arg("branch")
+        .arg("switch")
+        .arg("another")
+        .assert()
+        .context("branch-switch-3", "")
+        .success()
+        .stderr(ContainsHooks { expected: &[] });
 }
 
 #[derive(Debug)]
