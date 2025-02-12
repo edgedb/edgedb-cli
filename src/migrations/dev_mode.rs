@@ -38,23 +38,35 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> 
                 .get_range(skip..)
                 .ok_or_else(|| bug::error("`skip` is out of range"))?;
             if !migrations.is_empty() {
-                bar.set_message("applying migrations");
+                bar.set_message("Applying migrations");
                 apply_migrations(cli, migrations, ctx, false).await?;
+                bar.println("Migrations applied");
             }
-            bar.set_message("calculating diff");
-            log::info!("Calculating schema diff.");
-            migrate_to_schema(cli, ctx).await?;
+
+            bar.set_message("Calculating diff");
+            log::info!("Calculating schema diff");
+            let applied_changes = migrate_to_schema(cli, ctx).await?;
+            if applied_changes {
+                bar.println("Changes applied.");
+            } else {
+                bar.println("Schema up to date.");
+            }
         }
         Mode::Rebase => {
-            log::info!("Calculating schema diff.");
-            bar.set_message("calculating diff");
-            migrate_to_schema(cli, ctx).await?;
+            bar.set_message("Calculating diff");
+            log::info!("Calculating schema diff");
+            let applied_changes = migrate_to_schema(cli, ctx).await?;
+
             log::info!("Now rebasing on top of filesystem migrations.");
-            bar.set_message("rebasing migrations");
+            bar.set_message("Rebasing migrations");
             rebase_to_schema(cli, ctx, &migrations).await?;
+            if applied_changes {
+                bar.println("Migrations applied via rebase. There are pending --dev-mode changes.")
+            } else {
+                bar.println("Migrations applied via rebase.");
+            }
         }
     }
-    bar.println("Schema up to date.");
     Ok(())
 }
 
@@ -147,7 +159,7 @@ async fn get_db_migration(cli: &mut Connection) -> anyhow::Result<Option<String>
     Ok(res)
 }
 
-async fn migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()> {
+async fn migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Result<bool> {
     use gel_protocol::server_message::TransactionState::NotInTransaction;
 
     let transaction = matches!(cli.transaction_state(), NotInTransaction);
@@ -167,7 +179,7 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Resul
     }
 }
 
-async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()> {
+async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Result<bool> {
     execute(cli, "DECLARE SAVEPOINT migrate_to_schema", None).await?;
     let descr = async_try! {
         async {
@@ -211,8 +223,10 @@ async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Resu
     };
     if !descr.confirmed.is_empty() {
         ddl::apply_statements(cli, &descr.confirmed).await?;
+        Ok(true)
+    } else {
+        Ok(false)
     }
-    Ok(())
 }
 
 pub async fn rebase_to_schema(

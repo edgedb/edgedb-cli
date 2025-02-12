@@ -360,7 +360,7 @@ fn migration_error_hint<'a: 'b, 'b: 'a>(
             Some(MigrationGeneratedBy::DevMode) => {
                 format!(
                     "Use `{BRANDING_CLI_CMD} migration create` followed by \
-                    `{BRANDING_CLI_CMD} migrate --dev-mode`, or resume `{BRANDING_CLI_CMD} watch`"
+                    `{BRANDING_CLI_CMD} migration apply --dev-mode`"
                 )
             }
             Some(MigrationGeneratedBy::DDLStatement) => {
