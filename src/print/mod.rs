@@ -252,6 +252,12 @@ fn is_numeric(v: &Value) -> bool {
 
 fn to_cell(prn: &mut Printer<&mut String>, v: &Option<Value>) -> table::Cell {
     match v {
+        Some(Value::Str(s)) => {
+            let s = native::format_string(s, prn.expand_strings());
+            prn.const_string(&s[1..s.len() - 1])
+                .unwrap_exc()
+                .unwrap_infallible()
+        }
         Some(vi) => vi.format(prn).unwrap_exc().unwrap_infallible(),
         None => {}
     };
