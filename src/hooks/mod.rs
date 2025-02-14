@@ -2,6 +2,7 @@ use std::path;
 
 use crate::portable::{project, windows};
 use crate::print::{self, Highlight};
+use crate::process;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn on_action_sync(
@@ -34,11 +35,12 @@ pub async fn run_script(
     path: &path::Path,
 ) -> Result<std::process::ExitStatus, anyhow::Error> {
     let status = if !cfg!(windows) {
-        std::process::Command::new("/bin/sh")
+        process::Native::new("hook-script", "hook-script", "/bin/sh")
             .arg("-c")
             .arg(script)
             .current_dir(path)
-            .status()?
+            .run_for_status()
+            .await?
     } else {
         let wsl = windows::try_get_wsl()?;
         wsl.sh(path).arg("-c").arg(script).run_for_status().await?

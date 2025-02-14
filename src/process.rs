@@ -242,6 +242,11 @@ impl Native {
         self
     }
 
+    pub fn current_dir(&mut self, path: impl AsRef<Path>) -> &mut Self {
+        self.command.current_dir(path);
+        self
+    }
+
     pub fn env(&mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>) -> &mut Self {
         self.envs.insert(
             key.as_ref().to_os_string(),
@@ -361,7 +366,6 @@ impl Native {
     }
 
     async fn _run(&mut self, capture_out: bool, capture_err: bool) -> anyhow::Result<Output> {
-        let term = interrupt::Interrupt::term();
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
         log::info!("Running {}: {:?}", self.description, self.command);
@@ -391,11 +395,10 @@ impl Native {
                     stdout_loop(mark, err, capture_err.then_some(&mut stderr), self.quiet),
                 )
             } => child_result,
-            _ = self.signal_loop(pid, &term) => unreachable!(),
+            _ = self.signal_loop_tokio(pid) => unreachable!(),
         };
 
         remove_pid_file(&self.pid_file);
-        term.err_if_occurred()?;
 
         let status = child_result.with_context(|| {
             format!(
@@ -650,6 +653,35 @@ impl Native {
             unsafe { libc::kill(pid as i32, SIGKILL) };
         }
         wait_forever().await
+    }
+
+    #[cfg(windows)]
+    async fn signal_loop_tokio(&self, _: u32) -> io::Result<()> {
+        // on windows Ctrl+C signals are propagated automatically and no other
+        // signals are supported, so there is nothing to do here
+        wait_forever().await;
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    async fn signal_loop_tokio(&self, pid: u32) -> io::Result<()> {
+        use signal_hook::consts::signal::{SIGINT, SIGKILL};
+        use std::time::Duration;
+        use tokio::time::timeout;
+
+        tokio::signal::ctrl_c().await?;
+        if self.try_stop_process().await.is_err() {
+            unsafe { libc::kill(pid as i32, SIGINT) };
+        }
+
+        timeout(Duration::from_secs(10), pending::<()>()).await.ok();
+        log::warn!(
+            "Process {} did not stop within 10 seconds, forcing...",
+            self.description
+        );
+        unsafe { libc::kill(pid as i32, SIGKILL) };
+        wait_forever().await;
+        Ok(())
     }
 
     async fn try_stop_process(&self) -> Result<(), ()> {

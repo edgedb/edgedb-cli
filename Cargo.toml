@@ -128,7 +128,7 @@ zip = "2.2.0"
 libflate = "2.1.0"
 open = "5.3.0"
 tokio = {version="1.23.0",features=[
-    "macros", "rt", "rt-multi-thread", "fs", "process", "io-std", "net",
+    "macros", "rt", "rt-multi-thread", "fs", "process", "io-std", "net", "signal"
 ]}
 dissimilar = "1.0.6"
 notify = "8.0"
