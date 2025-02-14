@@ -5,8 +5,6 @@ use notify::{EventKind, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 
-use crate::interrupt::Interrupt;
-
 const STABLE_TIME: Duration = Duration::from_millis(100);
 
 pub struct FsWatcher {
@@ -33,11 +31,10 @@ impl FsWatcher {
 
     /// Waits for either changes in fs, timeout or interrupt signal
     pub async fn wait(&mut self, timeout: Option<Duration>) -> Event {
-        let ctrl_c = Interrupt::ctrl_c();
         tokio::select! {
             changes = self.wait_for_changes() => Event::Changed(changes),
             _ = wait_for_timeout(timeout) => Event::Retry,
-            _ = ctrl_c.wait() => Event::Abort,
+            _ = tokio::signal::ctrl_c() => Event::Abort,
         }
     }
 
