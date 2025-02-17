@@ -11,23 +11,24 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::connect::{Connection, Connector};
 use crate::migrations::{self, dev_mode};
-use crate::portable::project;
 use crate::print;
 
-use super::{ExecutionOrder, Matcher};
+use super::{Context, ExecutionOrder, Matcher};
 
 pub struct Migrator {
-    ctx: migrations::Context,
+    ctx: Arc<Context>,
+    migration_ctx: migrations::Context,
 
-    // things needed for migrate
     connector: Connector,
     is_force_database_error: bool,
 }
 
 impl Migrator {
-    pub fn new(connector: Connector, project: Arc<project::Context>) -> anyhow::Result<Self> {
+    pub async fn new(ctx: Arc<Context>) -> anyhow::Result<Self> {
+        let connector = ctx.options.create_connector().await?;
         Ok(Migrator {
-            ctx: migrations::Context::for_project(project.as_ref().clone())?,
+            migration_ctx: migrations::Context::for_project(ctx.project.clone())?,
+            ctx,
             connector,
             is_force_database_error: false,
         })
@@ -39,7 +40,7 @@ impl Migrator {
         matcher: Arc<Matcher>,
     ) {
         while let Some(order) = ExecutionOrder::recv(&mut input).await {
-            order.print(&matcher);
+            order.print(&matcher, self.ctx.as_ref());
 
             let res = self.migration_apply_dev_mode().await;
 
@@ -60,7 +61,7 @@ impl Migrator {
         let mut cli = self.connector.connect().await?;
 
         let old_state = cli.set_ignore_error_state();
-        let result = dev_mode::migrate(&mut cli, &self.ctx, &bar).await;
+        let result = dev_mode::migrate(&mut cli, &self.migration_ctx, &bar).await;
         cli.restore_state(old_state);
 
         bar.finish_and_clear();

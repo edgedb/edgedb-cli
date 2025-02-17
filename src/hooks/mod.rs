@@ -1,8 +1,5 @@
-use std::path;
-
-use crate::portable::{project, windows};
+use crate::portable::project;
 use crate::print::{self, Highlight};
-use crate::process;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn on_action_sync(
@@ -19,7 +16,7 @@ pub async fn on_action(action: &'static str, project: &project::Context) -> anyh
 
     print::msg!("{}", format!("hook {action}: {script}").muted());
 
-    let status = run_script(script, &project.location.root).await?;
+    let status = crate::watch::run_script(action, script, &project.location.root).await?;
 
     // abort on error
     if !status.success() {
@@ -28,24 +25,6 @@ pub async fn on_action(action: &'static str, project: &project::Context) -> anyh
         ));
     }
     Ok(())
-}
-
-pub async fn run_script(
-    script: &str,
-    path: &path::Path,
-) -> Result<std::process::ExitStatus, anyhow::Error> {
-    let status = if !cfg!(windows) {
-        process::Native::new("hook-script", "hook-script", "/bin/sh")
-            .arg("-c")
-            .arg(script)
-            .current_dir(path)
-            .run_for_status()
-            .await?
-    } else {
-        let wsl = windows::try_get_wsl()?;
-        wsl.sh(path).arg("-c").arg(script).run_for_status().await?
-    };
-    Ok(status)
 }
 
 fn get_hook<'m>(
