@@ -18,7 +18,7 @@ use crate::print_markdown;
 use crate::question;
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct CliMigrate {
+pub struct Command {
     /// Dry run: do not actually move anything
     #[arg(short = 'n', long)]
     pub dry_run: bool,
@@ -35,10 +35,10 @@ enum ConfirmOverwrite {
     Quit,
 }
 
-pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
+pub fn run(cmd: &Command) -> anyhow::Result<()> {
     let base = home_dir()?.join(".edgedb");
     if base.exists() {
-        migrate(&base, options.dry_run)
+        migrate(&base, cmd.dry_run)
     } else {
         log::warn!(
             "Directory {:?} does not exist. No actions will be taken.",
