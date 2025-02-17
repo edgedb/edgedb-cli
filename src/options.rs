@@ -14,7 +14,6 @@ use tokio::task::spawn_blocking as unblock;
 
 use edgedb_cli_derive::IntoArgs;
 
-use crate::cli::options::CliCommand;
 use crate::{cli, watch};
 
 use crate::branch;
@@ -369,14 +368,14 @@ pub enum Command {
     /// Generate shell completions
     #[command(name = "_gen_completions")]
     #[command(hide = true)]
-    _GenCompletions(cli::install::GenCompletions),
+    _GenCompletions(cli::gen_completions::Command),
     /// Self-installation commands
     #[command(name = "cli")]
-    Cli(CliCommand),
+    Cli(cli::Command),
     /// Install [`BRANDING`]
     #[command(name = "_self_install")]
     #[command(hide = true)]
-    _SelfInstall(cli::install::CliInstall),
+    _SelfInstall(cli::install::Command),
     /// [`BRANDING_CLOUD`] authentication
     Cloud(CloudCommand),
     /// Start a long-running process that watches the project directory

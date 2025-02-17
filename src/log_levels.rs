@@ -1,4 +1,4 @@
-use crate::cli::options::Command as Cli;
+use crate::cli;
 use crate::commands::parser::Common;
 use crate::migrations::options::MigrationCmd;
 use crate::options::{Command, Options};
@@ -13,10 +13,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
     }
     match &opt.subcommand {
         Some(Command::Cli(c)) => match &c.subcommand {
-            Cli::Upgrade(s) if s.verbose => {
+            cli::Subcommand::Upgrade(s) if s.verbose => {
                 builder.filter_module("edgedb::self_upgrade", log::LevelFilter::Info);
             }
-            Cli::Migrate(s) if s.verbose => {
+            cli::Subcommand::Migrate(s) if s.verbose => {
                 builder.filter_module("edgedb::self_migrate", log::LevelFilter::Info);
             }
             _ => {}

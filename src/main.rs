@@ -107,13 +107,11 @@ fn main() {
 }
 
 fn is_cli_upgrade(cmd: &Option<options::Command>) -> bool {
-    use cli::options::CliCommand;
-    use cli::options::Command::Upgrade;
     use options::Command::Cli;
     matches!(
         cmd,
-        Some(Cli(CliCommand {
-            subcommand: Upgrade(..)
+        Some(Cli(cli::Command {
+            subcommand: cli::Subcommand::Upgrade(..)
         }))
     )
 }
@@ -133,8 +131,8 @@ fn _main() -> anyhow::Result<()> {
     if let Some(arg0) = std::env::args_os().next() {
         if let Some(exe_name) = Path::new(&arg0).file_name() {
             if exe_name.to_string_lossy().contains("-init") {
-                let opt = cli::install::CliInstall::parse();
-                return cli::install::main(&opt);
+                let opt = cli::install::Command::parse();
+                return cli::install::run(&opt);
             }
         }
     }

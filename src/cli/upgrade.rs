@@ -17,7 +17,7 @@ use crate::process;
 const INDEX_TIMEOUT: Duration = Duration::new(60, 0);
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct CliUpgrade {
+pub struct Command {
     /// Enable verbose output
     #[arg(short = 'v', long)]
     pub verbose: bool,
@@ -43,6 +43,91 @@ pub struct CliUpgrade {
     #[arg(long, value_enum)]
     #[arg(conflicts_with_all=&["to_stable", "to_nightly", "to_testing"])]
     pub to_channel: Option<Channel>,
+}
+
+pub fn run(cmd: &Command) -> anyhow::Result<()> {
+    let path = binary_path()?;
+    if !_can_upgrade(&path)? {
+        anyhow::bail!("Only binary installed at {:?} can be upgraded", path);
+    }
+    upgrade(cmd, path)
+}
+
+fn upgrade(cmd: &Command, path: PathBuf) -> anyhow::Result<()> {
+    let cur_channel = channel();
+    let channel = if let Some(channel) = cmd.to_channel {
+        channel
+    } else if cmd.to_stable {
+        Channel::Stable
+    } else if cmd.to_nightly {
+        Channel::Nightly
+    } else if cmd.to_testing {
+        Channel::Testing
+    } else {
+        cur_channel
+    };
+
+    #[allow(unused_mut)]
+    let mut target_plat = platform::get_cli()?;
+    // Always force upgrade when switching channel
+    #[allow(unused_mut)]
+    let mut force = cmd.force || cur_channel != channel;
+
+    if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
+        target_plat = "aarch64-apple-darwin";
+        // Always force upgrade when need to switch platform
+        force = true;
+    }
+
+    let pkg = repository::get_platform_cli_packages(channel, target_plat, INDEX_TIMEOUT)?
+        .into_iter()
+        .max_by(|a, b| a.version.cmp(&b.version))
+        .context("cannot find new version")?;
+    if !force && pkg.version <= self_version()? {
+        log::info!("Version is identical; no update needed.");
+        if !cmd.quiet {
+            print::success!("Already up to date.");
+        }
+        return Ok(());
+    }
+
+    let down_dir = path
+        .parent()
+        .context("download path missing directory component")?;
+    fs::create_dir_all(down_dir).with_context(|| format!("failed to create {down_dir:?}"))?;
+
+    let down_path = path.with_extension("download");
+    let tmp_path = tmp_file_path(&path);
+
+    download(&down_path, &pkg.url, cmd.quiet)?;
+    unpack_file(&down_path, &tmp_path, pkg.compression)?;
+
+    let backup_path = path.with_extension("backup");
+    if cfg!(unix) {
+        fs::remove_file(&backup_path).ok();
+        fs::hard_link(&path, &backup_path)
+            .map_err(|e| log::warn!("Cannot keep a backup file: {:#}", e))
+            .ok();
+    } else if cfg!(windows) {
+        fs::remove_file(&backup_path).ok();
+        fs::rename(&path, &backup_path)?;
+    } else {
+        anyhow::bail!("unknown OS");
+    }
+    process::Native::new("upgrade", "cli", &tmp_path)
+        .arg("cli")
+        .arg("install")
+        .arg("--upgrade")
+        .no_proxy()
+        .run()?;
+    fs::remove_file(&tmp_path).ok();
+    if !cmd.quiet {
+        msg!(
+            "Upgraded to version {}",
+            pkg.version.to_string().emphasized()
+        );
+    }
+    Ok(())
 }
 
 pub fn can_upgrade() -> bool {
@@ -133,17 +218,9 @@ pub fn self_version() -> anyhow::Result<ver::Semver> {
         .context("cannot parse cli version")
 }
 
-pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
-    let path = binary_path()?;
-    if !_can_upgrade(&path)? {
-        anyhow::bail!("Only binary installed at {:?} can be upgraded", path);
-    }
-    _main(options, path)
-}
-
 pub fn upgrade_to_arm64() -> anyhow::Result<()> {
-    _main(
-        &CliUpgrade {
+    upgrade(
+        &Command {
             verbose: false,
             quiet: false,
             force: true,
@@ -154,81 +231,4 @@ pub fn upgrade_to_arm64() -> anyhow::Result<()> {
         },
         binary_path()?,
     )
-}
-
-fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
-    let cur_channel = channel();
-    let channel = if let Some(channel) = options.to_channel {
-        channel
-    } else if options.to_stable {
-        Channel::Stable
-    } else if options.to_nightly {
-        Channel::Nightly
-    } else if options.to_testing {
-        Channel::Testing
-    } else {
-        cur_channel
-    };
-
-    #[allow(unused_mut)]
-    let mut target_plat = platform::get_cli()?;
-    // Always force upgrade when switching channel
-    #[allow(unused_mut)]
-    let mut force = options.force || cur_channel != channel;
-
-    if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
-        target_plat = "aarch64-apple-darwin";
-        // Always force upgrade when need to switch platform
-        force = true;
-    }
-
-    let pkg = repository::get_platform_cli_packages(channel, target_plat, INDEX_TIMEOUT)?
-        .into_iter()
-        .max_by(|a, b| a.version.cmp(&b.version))
-        .context("cannot find new version")?;
-    if !force && pkg.version <= self_version()? {
-        log::info!("Version is identical; no update needed.");
-        if !options.quiet {
-            print::success!("Already up to date.");
-        }
-        return Ok(());
-    }
-
-    let down_dir = path
-        .parent()
-        .context("download path missing directory component")?;
-    fs::create_dir_all(down_dir).with_context(|| format!("failed to create {down_dir:?}"))?;
-
-    let down_path = path.with_extension("download");
-    let tmp_path = tmp_file_path(&path);
-
-    download(&down_path, &pkg.url, options.quiet)?;
-    unpack_file(&down_path, &tmp_path, pkg.compression)?;
-
-    let backup_path = path.with_extension("backup");
-    if cfg!(unix) {
-        fs::remove_file(&backup_path).ok();
-        fs::hard_link(&path, &backup_path)
-            .map_err(|e| log::warn!("Cannot keep a backup file: {:#}", e))
-            .ok();
-    } else if cfg!(windows) {
-        fs::remove_file(&backup_path).ok();
-        fs::rename(&path, &backup_path)?;
-    } else {
-        anyhow::bail!("unknown OS");
-    }
-    process::Native::new("upgrade", "cli", &tmp_path)
-        .arg("cli")
-        .arg("install")
-        .arg("--upgrade")
-        .no_proxy()
-        .run()?;
-    fs::remove_file(&tmp_path).ok();
-    if !options.quiet {
-        msg!(
-            "Upgraded to version {}",
-            pkg.version.to_string().emphasized()
-        );
-    }
-    Ok(())
 }
