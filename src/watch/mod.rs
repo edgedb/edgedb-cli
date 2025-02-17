@@ -180,9 +180,7 @@ async fn start_executors(
         senders.push(tx);
 
         match &matcher.target {
-            Target::Script(_) => {
-                join_set.spawn(scripts::execute(rx, matcher.clone(), ctx.clone()))
-            }
+            Target::Script(_) => join_set.spawn(scripts::execute(rx, matcher.clone(), ctx.clone())),
             Target::MigrateDevMode => {
                 let migrator = migrate::Migrator::new(ctx.clone()).await?;
 

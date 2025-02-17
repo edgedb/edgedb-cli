@@ -23,7 +23,7 @@ pub async fn execute(
             unreachable!()
         };
 
-        let res = run_script(matcher.name(), &script, project_root).await;
+        let res = run_script(matcher.name(), script, project_root).await;
 
         match res {
             Ok(status) => {
