@@ -578,11 +578,13 @@ pub async fn execute(
     use ExecuteResult::*;
     use Setting::*;
 
-    let options = Options {
+    let mut options = Options {
         command_line: false,
         styler: Some(Styler::new()),
         conn_params: prompt.conn_params.clone(),
+        instance_name: None,
     };
+    options.infer_instance_name()?;
     match cmd {
         Help => {
             print!("{HELP}");

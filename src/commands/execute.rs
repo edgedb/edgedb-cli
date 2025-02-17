@@ -115,7 +115,7 @@ pub async fn common(
             }
         },
         Branch(cmd) => {
-            return branch::run(&cmd.subcommand, options, Some(conn), None).await;
+            return branch::run(&cmd.subcommand, options, conn).await;
         }
         Migrate(cmd) => {
             migrations::apply::run(cmd, conn, options).await?;
