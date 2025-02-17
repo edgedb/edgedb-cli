@@ -18,13 +18,13 @@ use crate::options::ConnectionOptions;
 pub async fn run(
     cmd: &Subcommand,
     options: &Options,
-    conn: &mut Connection,
+    conn: Option<&mut Connection>,
 ) -> anyhow::Result<CommandResult> {
     let context = context::Context::new(options.instance_name.as_ref()).await?;
 
     let mut connector: Connector = options.conn_params.clone();
 
-    // commands that don't need existing connection
+    // commands that don't need connection
     match &cmd {
         Subcommand::Switch(switch) => return switch::run(switch, &context, &mut connector).await,
         Subcommand::Wipe(wipe) => {
@@ -33,6 +33,15 @@ pub async fn run(
         }
         _ => {}
     }
+
+    // connect
+    let mut conn_cell;
+    let conn = if let Some(conn) = conn {
+        conn
+    } else {
+        conn_cell = options.conn_params.connect().await?;
+        &mut conn_cell
+    };
 
     verify_server_can_use_branches(conn).await?;
 

@@ -48,7 +48,8 @@ fn create_report() {
 
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("CREATE TYPE default::Type1;\n").unwrap();
-    cmd.exp_string("OK: CREATE").unwrap();
+    cmd.exp_string("OK: ").unwrap();
+    cmd.exp_string("CREATE").unwrap();
 }
 
 #[test]
