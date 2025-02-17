@@ -5,18 +5,18 @@ use clap::ValueHint;
 use const_format::concatcp;
 use gel_tokio::get_stash_path;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::branding::BRANDING_CLOUD;
-use crate::branding::{BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
 use crate::commands::ExitCode;
 use crate::portable::project;
 use crate::print::{self, msg, Highlight};
 use crate::table;
 
 pub fn run(options: &Command) -> anyhow::Result<()> {
-    let Some(project) = project::find_project(options.project_dir.as_deref())? else {
-        anyhow::bail!("`{MANIFEST_FILE_DISPLAY_NAME}` not found, unable to get project info.");
-    };
-    let stash_dir = get_stash_path(&project.root)?;
+    let ctx = project::ensure_ctx(options.project_dir.as_deref())?;
+    let schema_dir = ctx.resolve_schema_dir()?;
+
+    let stash_dir = get_stash_path(&ctx.location.root)?;
     if !stash_dir.exists() {
         msg!(
             "{} {} Run `{BRANDING_CLI_CMD} project init`.",
@@ -52,6 +52,13 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
                     println!("{profile}");
                 }
             }
+            "schema-dir" => {
+                if options.json {
+                    println!("{}", serde_json::to_string(&schema_dir)?);
+                } else {
+                    println!("{}", schema_dir.display());
+                }
+            }
             _ => unreachable!(),
         }
     } else if options.json {
@@ -60,13 +67,19 @@ pub fn run(options: &Command) -> anyhow::Result<()> {
             serde_json::to_string_pretty(&JsonInfo {
                 instance_name: &instance_name,
                 cloud_profile: cloud_profile.as_deref(),
-                root: &project.root,
+                root: &ctx.location.root,
+                schema_dir: &schema_dir,
             })?
         );
     } else {
-        let root = project.root.display().to_string();
-        let mut rows: Vec<(&str, String)> =
-            vec![("Instance name", instance_name), ("Project root", root)];
+        let root = ctx.location.root.display().to_string();
+        let schema_dir = schema_dir.display().to_string();
+
+        let mut rows: Vec<(&str, String)> = vec![
+            ("Instance name", instance_name),
+            ("Project root", root),
+            ("Schema dir", schema_dir),
+        ];
         if let Some(profile) = cloud_profile.as_deref() {
             rows.push((concatcp!(BRANDING_CLOUD, " profile"), profile.to_string()));
         }
@@ -92,6 +105,7 @@ pub struct Command {
     #[arg(long, value_parser=[
         "instance-name",
         "cloud-profile",
+        "schema-dir",
     ])]
     /// Get a specific value:
     ///
@@ -106,4 +120,5 @@ struct JsonInfo<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     cloud_profile: Option<&'a str>,
     root: &'a Path,
+    schema_dir: &'a Path,
 }
