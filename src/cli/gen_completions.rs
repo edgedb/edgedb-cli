@@ -5,8 +5,9 @@ use std::str::FromStr;
 
 use fn_error_context::context;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::options::Options;
-use crate::platform::home_dir;
+use crate::platform::{current_exe, home_dir};
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct Command {
@@ -97,13 +98,21 @@ impl Shell {
         use clap_complete::shells;
 
         let mut app = Options::command();
-        let n = "edgedb";
+
+        let exe_path = current_exe().unwrap();
+        let bin_name = exe_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap_or(BRANDING_CLI_CMD);
         match self {
-            Shell::Bash => clap_complete::generate(shells::Bash, &mut app, n, buf),
-            Shell::Elvish => clap_complete::generate(shells::Elvish, &mut app, n, buf),
-            Shell::Fish => clap_complete::generate(shells::Fish, &mut app, n, buf),
-            Shell::PowerShell => clap_complete::generate(shells::PowerShell, &mut app, n, buf),
-            Shell::Zsh => clap_complete::generate(shells::Zsh, &mut app, n, buf),
+            Shell::Bash => clap_complete::generate(shells::Bash, &mut app, bin_name, buf),
+            Shell::Elvish => clap_complete::generate(shells::Elvish, &mut app, bin_name, buf),
+            Shell::Fish => clap_complete::generate(shells::Fish, &mut app, bin_name, buf),
+            Shell::Zsh => clap_complete::generate(shells::Zsh, &mut app, bin_name, buf),
+            Shell::PowerShell => {
+                clap_complete::generate(shells::PowerShell, &mut app, bin_name, buf)
+            }
         }
     }
 }
