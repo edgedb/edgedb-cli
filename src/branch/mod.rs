@@ -11,18 +11,12 @@ pub mod switch;
 pub mod wipe;
 
 use crate::branding::BRANDING;
-use crate::commands::parser::BranchingCmd;
 use crate::commands::Options;
 use crate::connect::{Connection, Connector};
 use crate::options::ConnectionOptions;
 use crate::portable;
 
-#[tokio::main(flavor = "current_thread")]
-pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<CommandResult> {
-    do_run(&cmd.subcommand, options, None, cmd.conn.instance.as_ref()).await
-}
-
-pub async fn do_run(
+pub async fn run(
     cmd: &Subcommand,
     options: &Options,
     connection: Option<&mut Connection>,
@@ -106,17 +100,4 @@ pub async fn verify_server_can_use_branches(connection: &mut Connection) -> anyh
     }
 
     Ok(())
-}
-
-impl From<BranchingCmd> for Subcommand {
-    fn from(cmd: BranchingCmd) -> Self {
-        match cmd {
-            BranchingCmd::Create(args) => Subcommand::Create(args),
-            BranchingCmd::Drop(args) => Subcommand::Drop(args),
-            BranchingCmd::Wipe(args) => Subcommand::Wipe(args),
-            BranchingCmd::List(args) => Subcommand::List(args),
-            BranchingCmd::Switch(args) => Subcommand::Switch(args),
-            BranchingCmd::Rename(args) => Subcommand::Rename(args),
-        }
-    }
 }

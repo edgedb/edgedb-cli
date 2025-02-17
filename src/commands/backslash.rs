@@ -67,6 +67,7 @@ Editing
                             Defaults to vi (Notepad in Windows).
 
 Connection
+  \b, \branch ...           Branch commands
   \c, \connect [DBNAME]     Connect to database/branch DBNAME
 
 Settings
@@ -342,8 +343,8 @@ impl CommandCache {
         aliases.insert("quit", &["exit"]);
         aliases.insert("?", &["help"]);
         aliases.insert("h", &["help"]);
-        aliases.insert("branch", &["branching"]);
-        aliases.insert("b", &["branching"]);
+        aliases.insert("branch", &["branch"]);
+        aliases.insert("b", &["branch"]);
         let mut setting_cmd = None;
         let commands: BTreeMap<_, _> = clap
             .get_subcommands_mut()
@@ -589,8 +590,8 @@ pub async fn execute(
         }
         Common(ref cmd) => {
             prompt.soft_reconnect().await?;
-            let cli = prompt.connection.as_mut().expect("connection established");
-            let result = execute::common(cli, cmd, &options).await?;
+            let conn = prompt.connection.as_mut().expect("connection established");
+            let result = execute::common(conn, cmd, &options).await?;
 
             if let Some(branch) = result.new_branch {
                 prompt.try_connect(&branch).await?;
