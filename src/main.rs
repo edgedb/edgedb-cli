@@ -107,13 +107,11 @@ fn main() {
 }
 
 fn is_cli_upgrade(cmd: &Option<options::Command>) -> bool {
-    use cli::options::CliCommand;
-    use cli::options::Command::Upgrade;
     use options::Command::Cli;
     matches!(
         cmd,
-        Some(Cli(CliCommand {
-            subcommand: Upgrade(..)
+        Some(Cli(cli::Command {
+            subcommand: cli::Subcommand::Upgrade(..)
         }))
     )
 }

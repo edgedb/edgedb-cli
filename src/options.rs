@@ -14,7 +14,6 @@ use tokio::task::spawn_blocking as unblock;
 
 use edgedb_cli_derive::IntoArgs;
 
-use crate::cli::options::CliCommand;
 use crate::{cli, watch};
 
 use crate::branch;
@@ -372,7 +371,7 @@ pub enum Command {
     _GenCompletions(cli::gen_completions::Command),
     /// Self-installation commands
     #[command(name = "cli")]
-    Cli(CliCommand),
+    Cli(cli::Command),
     /// Install [`BRANDING`]
     #[command(name = "_self_install")]
     #[command(hide = true)]

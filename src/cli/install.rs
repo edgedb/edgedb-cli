@@ -28,6 +28,8 @@ use crate::process;
 use crate::question::{self, read_choice};
 use crate::table;
 
+use super::gen_completions;
+
 #[derive(clap::Parser, Clone, Debug)]
 pub struct Command {
     #[arg(long, hide = true)]
@@ -151,7 +153,7 @@ fn _run(cmd: &Command) -> anyhow::Result<()> {
     copy_to_installation_path(&settings.installation_path)?;
     copy_to_alternative_executable(&settings.installation_path)?;
 
-    super::gen_completions::write_completions_home()?;
+    gen_completions::write_completions_home()?;
 
     if settings.modify_path {
         #[cfg(windows)]

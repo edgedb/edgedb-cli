@@ -3,12 +3,38 @@ pub mod env;
 pub mod gen_completions;
 pub mod install;
 pub mod logo;
-pub mod main;
 pub mod migrate;
-pub mod options;
 pub mod upgrade;
 
 #[macro_use]
 mod markdown;
 
-pub use main::main;
+#[derive(clap::Args, Clone, Debug)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag = true)]
+pub struct Command {
+    #[command(subcommand)]
+    pub subcommand: Subcommand,
+}
+
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum Subcommand {
+    /// Upgrade the [`BRANDING_CLI_CMD`] command-line tool
+    Upgrade(upgrade::Command),
+    /// Install the [`BRANDING_CLI_CMD`] command-line tool
+    #[command(hide = true)]
+    Install(install::Command),
+    /// Migrate files from `~/.edgedb` to the new directory layout
+    #[command(hide = true)]
+    Migrate(migrate::Command),
+}
+
+pub fn run(cmd: &Command) -> anyhow::Result<()> {
+    use Subcommand::*;
+
+    match &cmd.subcommand {
+        Upgrade(s) => upgrade::run(s),
+        Install(s) => install::run(s),
+        Migrate(s) => migrate::run(s),
+    }
+}
