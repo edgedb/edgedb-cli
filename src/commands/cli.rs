@@ -1,5 +1,6 @@
 use is_terminal::IsTerminal;
 
+use crate::cli;
 use crate::cli::directory_check;
 use crate::cloud::main::cloud_main;
 use crate::commands;
@@ -11,7 +12,6 @@ use crate::options::{Command, Options};
 use crate::portable;
 use crate::print::style::Styler;
 use crate::watch;
-use crate::{branch, cli};
 
 #[tokio::main(flavor = "current_thread")]
 async fn common_cmd(
@@ -19,8 +19,7 @@ async fn common_cmd(
     cmdopt: commands::Options,
     cmd: &Common,
 ) -> Result<(), anyhow::Error> {
-    let mut conn = cmdopt.conn_params.connect().await?;
-    commands::execute::common(&mut conn, cmd, &cmdopt).await?;
+    commands::execute::common(None, cmd, &cmdopt).await?;
     Ok(())
 }
 
@@ -74,11 +73,6 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::UI(c) => commands::show_ui(c, options),
         Command::Cloud(c) => cloud_main(c, &options.cloud_options),
         Command::Watch(c) => watch::run(options, c),
-        Command::Branch(c) => {
-            let opts = init_command_opts(options)?;
-            branch::run(&opts, c)?;
-            Ok(())
-        }
         Command::HashPassword(cmd) => {
             println!("{}", portable::password_hash(&cmd.password));
             Ok(())
@@ -94,6 +88,7 @@ fn init_command_opts(options: &Options) -> Result<commands::Options, anyhow::Err
         } else {
             None
         },
+        instance_name: options.conn_options.instance.clone(),
         conn_params: options.block_on_create_connector()?,
     })
 }

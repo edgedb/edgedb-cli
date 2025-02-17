@@ -488,6 +488,7 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path) -> anyhow::R
         command_line: true,
         styler: None,
         conn_params: Connector::new(Ok(config)),
+        instance_name: Some(InstanceName::Local(inst.name.clone())),
     };
     commands::dump_all(
         &mut cli,
@@ -578,6 +579,7 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()
         command_line: true,
         styler: None,
         conn_params: Connector::new(Ok(cfg)),
+        instance_name: Some(InstanceName::Local(inst.name.clone())),
     };
     commands::restore_all(
         &mut cli,
