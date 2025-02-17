@@ -67,8 +67,8 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
             directory_check::check_and_warn();
             non_interactive::noninteractive_main(q, options)
         }
-        Command::_SelfInstall(s) => cli::install::main(s),
-        Command::_GenCompletions(s) => cli::install::gen_completions(s),
+        Command::_SelfInstall(s) => cli::install::run(s),
+        Command::_GenCompletions(s) => cli::gen_completions::run(s),
         Command::Cli(c) => cli::main(c),
         Command::Info(info) => commands::info(options, info),
         Command::UI(c) => commands::show_ui(c, options),

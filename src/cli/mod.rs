@@ -1,5 +1,6 @@
 pub mod directory_check;
 pub mod env;
+pub mod gen_completions;
 pub mod install;
 pub mod logo;
 pub mod main;

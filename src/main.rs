@@ -133,8 +133,8 @@ fn _main() -> anyhow::Result<()> {
     if let Some(arg0) = std::env::args_os().next() {
         if let Some(exe_name) = Path::new(&arg0).file_name() {
             if exe_name.to_string_lossy().contains("-init") {
-                let opt = cli::install::CliInstall::parse();
-                return cli::install::main(&opt);
+                let opt = cli::install::Command::parse();
+                return cli::install::run(&opt);
             }
         }
     }

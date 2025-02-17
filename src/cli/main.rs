@@ -9,7 +9,7 @@ pub fn main(cmd: &CliCommand) -> anyhow::Result<()> {
 
     match &cmd.subcommand {
         Upgrade(s) => upgrade::main(s),
-        Install(s) => install::main(s),
+        Install(s) => install::run(s),
         Migrate(s) => migrate::main(s),
     }
 }

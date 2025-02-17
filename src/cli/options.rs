@@ -18,7 +18,7 @@ pub enum Command {
     Upgrade(upgrade::CliUpgrade),
     /// Install the [`BRANDING_CLI_CMD`] command-line tool
     #[command(hide = true)]
-    Install(install::CliInstall),
+    Install(install::Command),
     /// Migrate files from `~/.edgedb` to the new directory layout
     #[command(hide = true)]
     Migrate(migrate::CliMigrate),

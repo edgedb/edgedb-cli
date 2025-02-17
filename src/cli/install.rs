@@ -4,15 +4,12 @@
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::{stdout, BufWriter, Seek, SeekFrom, Write};
+use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
-use std::str::FromStr;
 
 use anyhow::Context;
-use clap_complete::{generate, shells};
 use const_format::concatcp;
-use fn_error_context::context;
 use gel_tokio::get_stash_path;
 use prettytable::{Cell, Row, Table};
 
@@ -22,7 +19,6 @@ use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLI_CMD};
 use crate::cli::logo::print_logo;
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
-use crate::options::Options;
 use crate::platform::{binary_path, config_dir, current_exe, home_dir};
 use crate::portable::platform;
 use crate::portable::project;
@@ -33,7 +29,7 @@ use crate::question::{self, read_choice};
 use crate::table;
 
 #[derive(clap::Parser, Clone, Debug)]
-pub struct CliInstall {
+pub struct Command {
     #[arg(long, hide = true)]
     pub nightly: bool,
     #[arg(long, hide = true)]
@@ -63,38 +59,172 @@ pub struct CliInstall {
     pub upgrade: bool,
 }
 
-#[derive(Debug, Clone, Copy, clap::ValueEnum)]
-#[value(rename_all = "kebab-case")]
-#[allow(clippy::enum_variant_names)]
-pub enum Shell {
-    Bash,
-    Elvish,
-    Fish,
-    PowerShell,
-    Zsh,
-}
-
-#[derive(clap::Args, Clone, Debug)]
-pub struct GenCompletions {
-    /// Shell to print out completions for
-    #[arg(long)]
-    pub shell: Option<Shell>,
-
-    /// Install all completions into the prefix
-    #[arg(long, conflicts_with = "shell")]
-    pub prefix: Option<PathBuf>,
-
-    /// Install all completions into the prefix
-    #[arg(long, conflicts_with = "shell", conflicts_with = "prefix")]
-    pub home: bool,
-}
-
 pub struct Settings {
     system: bool,
     installation_path: PathBuf,
     modify_path: bool,
     env_file: PathBuf,
     rc_files: Vec<PathBuf>,
+}
+
+pub fn run(cmd: &Command) -> anyhow::Result<()> {
+    match _run(cmd) {
+        Ok(()) => {
+            if cfg!(windows) && !cmd.upgrade && !cmd.no_confirm && !cmd.no_wait_for_exit_prompt {
+                // This is needed so user can read the message if console
+                // was open just for this process
+                eprintln!("Press the Enter key to continue");
+                read_choice()?;
+            }
+            Ok(())
+        }
+        Err(e) => {
+            if cfg!(windows) && !cmd.upgrade && !cmd.no_confirm && !cmd.no_wait_for_exit_prompt {
+                // This is needed so user can read the message if console
+                // was open just for this process
+                eprintln!("edgedb error: {e:#}");
+                eprintln!("Press the Enter key to continue");
+                read_choice()?;
+                exit(1);
+            }
+            Err(e)
+        }
+    }
+}
+
+fn _run(cmd: &Command) -> anyhow::Result<()> {
+    #[cfg(unix)]
+    if !cmd.no_confirm {
+        match home_dir_from_passwd().zip(env::var_os("HOME")) {
+            Some((passwd, env)) if passwd != env => {
+                msg!(
+                    "$HOME differs from euid-obtained home directory: \
+                       you may be using sudo"
+                );
+                msg!("$HOME directory: {}", Path::new(&env).display());
+                msg!("euid-obtained home directory: {}", passwd.display());
+                msg!(
+                    "if this is what you want, \
+                       restart the installation with `-y'"
+                );
+                return Err(ExitCode::new(1).into());
+            }
+            _ => {}
+        }
+    }
+    let installation_path = binary_path()?.parent().unwrap().to_owned();
+    let mut settings = Settings {
+        rc_files: get_rc_files()?,
+        system: false,
+        modify_path: !cmd.no_modify_path && no_dir_in_path(&installation_path),
+        installation_path,
+        env_file: config_dir()?.join("env"),
+    };
+    if !cmd.quiet && !cmd.upgrade {
+        print_long_description(&settings);
+        settings.print();
+        if !cmd.no_confirm {
+            loop {
+                println!("1) Proceed with installation (default)");
+                println!("2) Customize installation");
+                println!("3) Cancel installation");
+                match read_choice()?.as_ref() {
+                    "" | "1" => break,
+                    "2" => {
+                        customize(&mut settings)?;
+                        settings.print();
+                    }
+                    _ => {
+                        print::error!("Aborting installation.");
+                        exit(7);
+                    }
+                }
+            }
+        }
+    }
+
+    if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
+        msg!("{BRANDING} now supports native M1 build. Downloading binary...");
+        return upgrade::upgrade_to_arm64();
+    }
+
+    copy_to_installation_path(&settings.installation_path)?;
+    copy_to_alternative_executable(&settings.installation_path)?;
+
+    super::gen_completions::write_completions_home()?;
+
+    if settings.modify_path {
+        #[cfg(windows)]
+        {
+            use std::env::join_paths;
+
+            windows_augment_path(|orig_path| {
+                if orig_path.iter().any(|p| p == &settings.installation_path) {
+                    return None;
+                }
+                Some(
+                    join_paths(
+                        vec![&settings.installation_path]
+                            .into_iter()
+                            .chain(orig_path.iter()),
+                    )
+                    .expect("paths can be joined"),
+                )
+            })?;
+        }
+        if cfg!(unix) {
+            let line = format!(
+                "\nexport PATH=\"{}:$PATH\"",
+                settings.installation_path.display()
+            );
+            for path in &settings.rc_files {
+                ensure_line(path, &line)
+                    .with_context(|| format!("failed to update profile file {path:?}"))?;
+            }
+            if let Some(dir) = settings.env_file.parent() {
+                fs::create_dir_all(dir).with_context(|| format!("failed to create {dir:?}"))?;
+            }
+            fs::write(&settings.env_file, line + "\n")
+                .with_context(|| format!("failed to write env file {:?}", settings.env_file))?;
+        }
+    }
+
+    let base = home_dir()?.join(".edgedb");
+    let new_layout = if base.exists() {
+        eprintln!(
+            "\
+                {BRANDING_CLI} no longer uses '{}' to store data \
+                and now uses standard locations of your OS. \
+        ",
+            base.display()
+        );
+        let q = question::Confirm::new(format!(
+            "\
+            Do you want to run `{BRANDING_CLI_CMD} cli migrate` now to update \
+            the directory layout?\
+        "
+        ));
+        if q.ask()? {
+            migrate::migrate(&base, false)?;
+            true
+        } else {
+            false
+        }
+    } else {
+        true
+    };
+
+    if !cmd.upgrade {
+        let init_result = if cmd.no_confirm {
+            Ok(InitResult::NonInteractive)
+        } else {
+            try_project_init(new_layout)
+        };
+
+        print_post_install_message(&settings, init_result);
+    }
+
+    Ok(())
 }
 
 fn print_long_description(settings: &Settings) {
@@ -371,39 +501,6 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
     }
 }
 
-pub fn main(options: &CliInstall) -> anyhow::Result<()> {
-    match _main(options) {
-        Ok(()) => {
-            if cfg!(windows)
-                && !options.upgrade
-                && !options.no_confirm
-                && !options.no_wait_for_exit_prompt
-            {
-                // This is needed so user can read the message if console
-                // was open just for this process
-                eprintln!("Press the Enter key to continue");
-                read_choice()?;
-            }
-            Ok(())
-        }
-        Err(e) => {
-            if cfg!(windows)
-                && !options.upgrade
-                && !options.no_confirm
-                && !options.no_wait_for_exit_prompt
-            {
-                // This is needed so user can read the message if console
-                // was open just for this process
-                eprintln!("edgedb error: {e:#}");
-                eprintln!("Press the Enter key to continue");
-                read_choice()?;
-                exit(1);
-            }
-            Err(e)
-        }
-    }
-}
-
 fn customize(settings: &mut Settings) -> anyhow::Result<()> {
     if no_dir_in_path(&settings.installation_path) {
         let q = question::Confirm::new("Modify PATH variable?");
@@ -477,141 +574,6 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     } else {
         Ok(NotAProject)
     }
-}
-
-fn _main(options: &CliInstall) -> anyhow::Result<()> {
-    #[cfg(unix)]
-    if !options.no_confirm {
-        match home_dir_from_passwd().zip(env::var_os("HOME")) {
-            Some((passwd, env)) if passwd != env => {
-                msg!(
-                    "$HOME differs from euid-obtained home directory: \
-                       you may be using sudo"
-                );
-                msg!("$HOME directory: {}", Path::new(&env).display());
-                msg!("euid-obtained home directory: {}", passwd.display());
-                msg!(
-                    "if this is what you want, \
-                       restart the installation with `-y'"
-                );
-                return Err(ExitCode::new(1).into());
-            }
-            _ => {}
-        }
-    }
-    let installation_path = binary_path()?.parent().unwrap().to_owned();
-    let mut settings = Settings {
-        rc_files: get_rc_files()?,
-        system: false,
-        modify_path: !options.no_modify_path && no_dir_in_path(&installation_path),
-        installation_path,
-        env_file: config_dir()?.join("env"),
-    };
-    if !options.quiet && !options.upgrade {
-        print_long_description(&settings);
-        settings.print();
-        if !options.no_confirm {
-            loop {
-                println!("1) Proceed with installation (default)");
-                println!("2) Customize installation");
-                println!("3) Cancel installation");
-                match read_choice()?.as_ref() {
-                    "" | "1" => break,
-                    "2" => {
-                        customize(&mut settings)?;
-                        settings.print();
-                    }
-                    _ => {
-                        print::error!("Aborting installation.");
-                        exit(7);
-                    }
-                }
-            }
-        }
-    }
-
-    if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
-        msg!("{BRANDING} now supports native M1 build. Downloading binary...");
-        return upgrade::upgrade_to_arm64();
-    }
-
-    copy_to_installation_path(&settings.installation_path)?;
-    copy_to_alternative_executable(&settings.installation_path)?;
-
-    write_completions_home()?;
-
-    if settings.modify_path {
-        #[cfg(windows)]
-        {
-            use std::env::join_paths;
-
-            windows_augment_path(|orig_path| {
-                if orig_path.iter().any(|p| p == &settings.installation_path) {
-                    return None;
-                }
-                Some(
-                    join_paths(
-                        vec![&settings.installation_path]
-                            .into_iter()
-                            .chain(orig_path.iter()),
-                    )
-                    .expect("paths can be joined"),
-                )
-            })?;
-        }
-        if cfg!(unix) {
-            let line = format!(
-                "\nexport PATH=\"{}:$PATH\"",
-                settings.installation_path.display()
-            );
-            for path in &settings.rc_files {
-                ensure_line(path, &line)
-                    .with_context(|| format!("failed to update profile file {path:?}"))?;
-            }
-            if let Some(dir) = settings.env_file.parent() {
-                fs::create_dir_all(dir).with_context(|| format!("failed to create {dir:?}"))?;
-            }
-            fs::write(&settings.env_file, line + "\n")
-                .with_context(|| format!("failed to write env file {:?}", settings.env_file))?;
-        }
-    }
-
-    let base = home_dir()?.join(".edgedb");
-    let new_layout = if base.exists() {
-        eprintln!(
-            "\
-                {BRANDING_CLI} no longer uses '{}' to store data \
-                and now uses standard locations of your OS. \
-        ",
-            base.display()
-        );
-        let q = question::Confirm::new(format!(
-            "\
-            Do you want to run `{BRANDING_CLI_CMD} cli migrate` now to update \
-            the directory layout?\
-        "
-        ));
-        if q.ask()? {
-            migrate::migrate(&base, false)?;
-            true
-        } else {
-            false
-        }
-    } else {
-        true
-    };
-
-    if !options.upgrade {
-        let init_result = if options.no_confirm {
-            Ok(InitResult::NonInteractive)
-        } else {
-            try_project_init(new_layout)
-        };
-
-        print_post_install_message(&settings, init_result);
-    }
-
-    Ok(())
 }
 
 fn copy_to_installation_path<P: AsRef<Path>>(installation_path: P) -> anyhow::Result<()> {
@@ -853,50 +815,6 @@ pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>
     Ok(())
 }
 
-#[context("writing completion file {:?}", path)]
-fn write_completion(path: &Path, shell: Shell) -> anyhow::Result<()> {
-    if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir)?;
-    }
-    shell.generate(&mut BufWriter::new(fs::File::create(path)?));
-    Ok(())
-}
-
-pub fn write_completions_home() -> anyhow::Result<()> {
-    let home = home_dir()?;
-    write_completion(
-        &home.join(".local/share/bash-completion/completions/edgedb"),
-        Shell::Bash,
-    )?;
-    write_completion(
-        &home.join(".config/fish/completions/edgedb.fish"),
-        Shell::Fish,
-    )?;
-    write_completion(&home.join(".zfunc/_edgedb"), Shell::Zsh)?;
-    Ok(())
-}
-
-pub fn gen_completions(options: &GenCompletions) -> anyhow::Result<()> {
-    if let Some(shell) = options.shell {
-        shell.generate(&mut stdout());
-    } else if let Some(prefix) = &options.prefix {
-        write_completion(
-            &prefix.join("share/bash-completion/completions/edgedb"),
-            Shell::Bash,
-        )?;
-        write_completion(
-            &prefix.join("share/fish/completions/edgedb.fish"),
-            Shell::Fish,
-        )?;
-        write_completion(&prefix.join("share/zsh/site-functions/_edgedb"), Shell::Zsh)?;
-    } else if options.home {
-        write_completions_home()?;
-    } else {
-        anyhow::bail!("either `--prefix` or `--shell=` is expected");
-    }
-    Ok(())
-}
-
 impl Settings {
     pub fn print(&self) {
         let mut table = Table::new();
@@ -923,37 +841,6 @@ impl Settings {
         }
         table.set_format(*table::FORMAT);
         table.printstd();
-    }
-}
-
-impl FromStr for Shell {
-    type Err = anyhow::Error;
-    fn from_str(v: &str) -> anyhow::Result<Shell> {
-        use Shell::*;
-        match v {
-            "bash" => Ok(Bash),
-            "elvish" => Ok(Elvish),
-            "fish" => Ok(Fish),
-            "powershell" => Ok(PowerShell),
-            "zsh" => Ok(Zsh),
-            _ => anyhow::bail!("unknown shell {:?}", v),
-        }
-    }
-}
-
-impl Shell {
-    fn generate(&self, buf: &mut dyn Write) {
-        use Shell::*;
-
-        let mut app = Options::command();
-        let n = "edgedb";
-        match self {
-            Bash => generate(shells::Bash, &mut app, n, buf),
-            Elvish => generate(shells::Elvish, &mut app, n, buf),
-            Fish => generate(shells::Fish, &mut app, n, buf),
-            PowerShell => generate(shells::PowerShell, &mut app, n, buf),
-            Zsh => generate(shells::Zsh, &mut app, n, buf),
-        }
     }
 }
 
