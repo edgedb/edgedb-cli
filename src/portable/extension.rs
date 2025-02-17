@@ -42,13 +42,13 @@ pub struct Command {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Subcommands {
-    /// List installed extensions for a local instance.
+    /// List installed extensions
     List(ExtensionList),
-    /// List available extensions for a local instance.
+    /// List available extensions
     ListAvailable(ExtensionListAvailable),
-    /// Install an extension for a local instance.
+    /// Install an extension
     Install(ExtensionInstall),
-    /// Uninstall an extension from a local instance.
+    /// Uninstall an extension
     Uninstall(ExtensionUninstall),
 }
 
@@ -77,7 +77,6 @@ pub struct ExtensionInstall {
     pub instance: Option<InstanceName>,
 
     /// Name of the extension to install
-    #[arg(short = 'E', long)]
     pub extension: String,
     /// Specify the channel override (stable, testing, or nightly)
     #[arg(long, hide = true)]
@@ -89,14 +88,13 @@ pub struct ExtensionInstall {
     #[arg(long, hide = true)]
     pub reinstall: bool,
 }
-/// Represents the options for uninstalling an extension from a local EdgeDB instance.
+
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ExtensionUninstall {
     #[arg(from_global)]
     pub instance: Option<InstanceName>,
 
-    /// The name of the extension to uninstall.
-    #[arg(short = 'E', long)]
+    /// Name of the extension to uninstall
     pub extension: String,
 }
 
