@@ -1,0 +1,5 @@
+[instance]
+server-version = "nightly"
+
+[project]
+schema-dir = "./database_schema"
