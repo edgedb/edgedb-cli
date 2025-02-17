@@ -89,6 +89,7 @@ fn init_command_opts(options: &Options) -> Result<commands::Options, anyhow::Err
         } else {
             None
         },
+        instance_name: options.conn_options.instance.clone(),
         conn_params: options.block_on_create_connector()?,
     })
 }

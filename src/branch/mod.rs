@@ -14,15 +14,13 @@ use crate::branding::BRANDING;
 use crate::commands::Options;
 use crate::connect::{Connection, Connector};
 use crate::options::ConnectionOptions;
-use crate::portable;
 
 pub async fn run(
     cmd: &Subcommand,
     options: &Options,
-    connection: Option<&mut Connection>,
-    instance_arg: Option<&portable::options::InstanceName>,
+    conn: &mut Connection,
 ) -> anyhow::Result<CommandResult> {
-    let context = context::Context::new(instance_arg).await?;
+    let context = context::Context::new(options.instance_name.as_ref()).await?;
 
     let mut connector: Connector = options.conn_params.clone();
 
@@ -36,25 +34,16 @@ pub async fn run(
         _ => {}
     }
 
-    // ensure connected
-    let mut conn;
-    let conn_ref = if let Some(c) = connection {
-        c
-    } else {
-        conn = Some(connector.connect().await?);
-        conn.as_mut().unwrap()
-    };
-
-    verify_server_can_use_branches(conn_ref).await?;
+    verify_server_can_use_branches(conn).await?;
 
     match cmd {
-        Subcommand::Current(cmd) => current::run(cmd, &context, conn_ref).await?,
-        Subcommand::Create(cmd) => create::run(cmd, &context, conn_ref).await?,
-        Subcommand::Drop(cmd) => drop::main(cmd, &context, conn_ref).await?,
-        Subcommand::List(cmd) => list::main(cmd, &context, conn_ref).await?,
-        Subcommand::Rename(cmd) => return rename::run(cmd, &context, conn_ref, options).await,
-        Subcommand::Rebase(cmd) => rebase::main(cmd, &context, conn_ref, options).await?,
-        Subcommand::Merge(cmd) => merge::main(cmd, &context, conn_ref, options).await?,
+        Subcommand::Current(cmd) => current::run(cmd, &context, conn).await?,
+        Subcommand::Create(cmd) => create::run(cmd, &context, conn).await?,
+        Subcommand::Drop(cmd) => drop::main(cmd, &context, conn).await?,
+        Subcommand::List(cmd) => list::main(cmd, &context, conn).await?,
+        Subcommand::Rename(cmd) => return rename::run(cmd, &context, conn, options).await,
+        Subcommand::Rebase(cmd) => rebase::main(cmd, &context, conn, options).await?,
+        Subcommand::Merge(cmd) => merge::main(cmd, &context, conn, options).await?,
 
         // handled earlier
         Subcommand::Switch(_) | Subcommand::Wipe(_) => unreachable!(),
