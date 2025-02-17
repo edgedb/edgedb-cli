@@ -12,11 +12,30 @@ use crate::migrations::options::MigrationCmd;
 use crate::print;
 
 pub async fn common(
-    conn: &mut Connection,
+    conn: Option<&mut Connection>,
     cmd: &Common,
     options: &Options,
 ) -> Result<branch::CommandResult, anyhow::Error> {
     use Common::*;
+
+    // match commands that don't need connection
+    match cmd {
+        Branch(cmd) => {
+            return branch::run(&cmd.subcommand, options, conn).await;
+        }
+        _ => {}
+    }
+
+    // connect
+    let mut conn_cell;
+    let conn = if let Some(conn) = conn {
+        conn
+    } else {
+        conn_cell = options.conn_params.connect().await?;
+        &mut conn_cell
+    };
+
+    // match other
     match cmd {
         List(c) => match &c.subcommand {
             ListCmd::Aliases(c) => {
@@ -114,9 +133,7 @@ pub async fn common(
                 commands::database::wipe(conn, w).await?;
             }
         },
-        Branch(cmd) => {
-            return branch::run(&cmd.subcommand, options, conn).await;
-        }
+        Branch(_) => unreachable!(),
         Migrate(cmd) => {
             migrations::apply::run(cmd, conn, options).await?;
         }
