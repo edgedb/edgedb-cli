@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use edgedb_cli_derive::IntoArgs;
-use log::trace;
+use log::{debug, trace};
 use prettytable::{row, Table};
 
 use crate::branding::BRANDING_CLOUD;
@@ -180,9 +180,9 @@ fn install(cmd: &ExtensionInstall, _options: &Options) -> Result<(), anyhow::Err
     }
 
     let version = inst.get_version()?.specific();
-    let channel = cmd.channel.unwrap_or(Channel::from_version(&version)?);
-    let slot = cmd.slot.clone().unwrap_or(version.slot());
-    trace!("Instance: {version} {channel:?} {slot}");
+    let channel = cmd.channel.unwrap_or(Channel::Stable);
+    let slot = cmd.slot.clone().unwrap_or(version.extension_server_slot());
+    debug!("Instance: {version} {channel:?} {slot}");
     let packages = get_platform_extension_packages(channel, &slot, get_server()?)?;
 
     let package = packages
@@ -255,14 +255,14 @@ fn list_available(list: &ExtensionListAvailable, _options: &Options) -> Result<(
     let inst = get_local_instance(&list.instance)?;
 
     let version = inst.get_version()?.specific();
-    let channel = list.channel.unwrap_or(Channel::from_version(&version)?);
-    let slot = list.slot.clone().unwrap_or(version.slot());
-    trace!("Instance: {version} {channel:?} {slot}");
+    let channel = list.channel.unwrap_or(Channel::Stable);
+    let slot = list.slot.clone().unwrap_or(version.extension_server_slot());
+    debug!("Instance: {version} {channel:?} {slot}");
     let packages = get_platform_extension_packages(channel, &slot, get_server()?)?;
 
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
-    table.add_row(row!["Name", "Version"]);
+    table.set_titles(row!["Name", "Version"]);
     for pkg in packages {
         let ext = pkg.tags.get("extension").cloned().unwrap_or_default();
         table.add_row(row![ext, pkg.version]);
