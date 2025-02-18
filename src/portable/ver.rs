@@ -218,13 +218,13 @@ impl Specific {
         matches!(self.minor, MinorVersion::Minor(_))
     }
 
-    pub fn slot(&self) -> String {
+    pub fn extension_server_slot(&self) -> String {
         match self.minor {
             MinorVersion::Minor(_) => self.major.to_string(),
             MinorVersion::Dev(v) => format!("{}-dev{}", self.major, v),
-            MinorVersion::Alpha(v) => format!("{}-alpha{}", self.major, v),
-            MinorVersion::Beta(v) => format!("{}-beta{}", self.major, v),
-            MinorVersion::Rc(v) => format!("{}-rc{}", self.major, v),
+            MinorVersion::Alpha(v) => format!("{}-alpha-{}", self.major, v),
+            MinorVersion::Beta(v) => format!("{}-beta-{}", self.major, v),
+            MinorVersion::Rc(v) => format!("{}-rc-{}", self.major, v),
         }
     }
 }
