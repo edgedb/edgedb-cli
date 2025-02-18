@@ -11,28 +11,20 @@ pub mod switch;
 pub mod wipe;
 
 use crate::branding::BRANDING;
-use crate::commands::parser::BranchingCmd;
 use crate::commands::Options;
 use crate::connect::{Connection, Connector};
 use crate::options::ConnectionOptions;
-use crate::portable;
 
-#[tokio::main(flavor = "current_thread")]
-pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<CommandResult> {
-    do_run(&cmd.subcommand, options, None, cmd.conn.instance.as_ref()).await
-}
-
-pub async fn do_run(
+pub async fn run(
     cmd: &Subcommand,
     options: &Options,
-    connection: Option<&mut Connection>,
-    instance_arg: Option<&portable::options::InstanceName>,
+    conn: Option<&mut Connection>,
 ) -> anyhow::Result<CommandResult> {
-    let context = context::Context::new(instance_arg).await?;
+    let context = context::Context::new(options.instance_name.as_ref()).await?;
 
     let mut connector: Connector = options.conn_params.clone();
 
-    // commands that don't need existing connection
+    // commands that don't need connection
     match &cmd {
         Subcommand::Switch(switch) => return switch::run(switch, &context, &mut connector).await,
         Subcommand::Wipe(wipe) => {
@@ -42,25 +34,25 @@ pub async fn do_run(
         _ => {}
     }
 
-    // ensure connected
-    let mut conn;
-    let conn_ref = if let Some(c) = connection {
-        c
+    // connect
+    let mut conn_cell;
+    let conn = if let Some(conn) = conn {
+        conn
     } else {
-        conn = Some(connector.connect().await?);
-        conn.as_mut().unwrap()
+        conn_cell = options.conn_params.connect().await?;
+        &mut conn_cell
     };
 
-    verify_server_can_use_branches(conn_ref).await?;
+    verify_server_can_use_branches(conn).await?;
 
     match cmd {
-        Subcommand::Current(cmd) => current::run(cmd, &context, conn_ref).await?,
-        Subcommand::Create(cmd) => create::run(cmd, &context, conn_ref).await?,
-        Subcommand::Drop(cmd) => drop::main(cmd, &context, conn_ref).await?,
-        Subcommand::List(cmd) => list::main(cmd, &context, conn_ref).await?,
-        Subcommand::Rename(cmd) => return rename::run(cmd, &context, conn_ref, options).await,
-        Subcommand::Rebase(cmd) => rebase::main(cmd, &context, conn_ref, options).await?,
-        Subcommand::Merge(cmd) => merge::main(cmd, &context, conn_ref, options).await?,
+        Subcommand::Current(cmd) => current::run(cmd, &context, conn).await?,
+        Subcommand::Create(cmd) => create::run(cmd, &context, conn).await?,
+        Subcommand::Drop(cmd) => drop::main(cmd, &context, conn).await?,
+        Subcommand::List(cmd) => list::main(cmd, &context, conn).await?,
+        Subcommand::Rename(cmd) => return rename::run(cmd, &context, conn, options).await,
+        Subcommand::Rebase(cmd) => rebase::main(cmd, &context, conn, options).await?,
+        Subcommand::Merge(cmd) => merge::main(cmd, &context, conn, options).await?,
 
         // handled earlier
         Subcommand::Switch(_) | Subcommand::Wipe(_) => unreachable!(),
@@ -106,17 +98,4 @@ pub async fn verify_server_can_use_branches(connection: &mut Connection) -> anyh
     }
 
     Ok(())
-}
-
-impl From<BranchingCmd> for Subcommand {
-    fn from(cmd: BranchingCmd) -> Self {
-        match cmd {
-            BranchingCmd::Create(args) => Subcommand::Create(args),
-            BranchingCmd::Drop(args) => Subcommand::Drop(args),
-            BranchingCmd::Wipe(args) => Subcommand::Wipe(args),
-            BranchingCmd::List(args) => Subcommand::List(args),
-            BranchingCmd::Switch(args) => Subcommand::Switch(args),
-            BranchingCmd::Rename(args) => Subcommand::Rename(args),
-        }
-    }
 }

@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use crate::branding::BRANDING_CLI_CMD;
-use crate::migrations;
 use crate::migrations::options::Migration;
 use crate::options::ConnectionOptions;
 use crate::portable::options::InstanceName;
 use crate::repl::{self, VectorLimit};
+use crate::{branch, migrations};
 
 use const_format::concatcp;
 
@@ -27,7 +27,8 @@ pub enum Common {
 
     /// Database commands
     Database(Database),
-    Branching(Branching),
+    /// Manage branches
+    Branch(branch::Command),
     /// Describe database schema or object
     Describe(Describe),
 
@@ -122,34 +123,6 @@ pub enum ListCmd {
     Scalars(ListTypes),
     /// Display list of object types defined in the schema
     Types(ListTypes),
-}
-
-#[derive(clap::Args, Clone, Debug)]
-#[command(version = "help_expand", hide = true)]
-#[command(disable_version_flag = true)]
-pub struct Branching {
-    #[command(flatten)]
-    pub conn: ConnectionOptions,
-
-    #[command(subcommand)]
-    pub subcommand: BranchingCmd,
-}
-
-#[derive(clap::Subcommand, Clone, Debug)]
-pub enum BranchingCmd {
-    /// Create a new branch
-    Create(crate::branch::create::Command),
-    /// Delete a branch along with its data
-    Drop(crate::branch::drop::Command),
-    /// Delete a branch's data and reset its schema while preserving the branch
-    /// itself (its `cfg::DatabaseConfig`) and existing migration scripts
-    Wipe(crate::branch::wipe::Command),
-    /// List all branches.
-    List(crate::branch::list::Command),
-    /// Switches the current branch to a different one.
-    Switch(crate::branch::switch::Command),
-    /// Renames a branch.
-    Rename(crate::branch::rename::Command),
 }
 
 #[derive(clap::Args, Clone, Debug)]
