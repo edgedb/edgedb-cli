@@ -129,7 +129,7 @@ pub fn read(path: &Path) -> anyhow::Result<Manifest> {
                 .map(|s| PathBuf::from(s.into_inner())),
         }),
         hooks: val.hooks,
-        watch: val.watch,
+        watch: val.watch.unwrap_or_default(),
     });
 }
 
@@ -250,7 +250,7 @@ pub struct SrcManifest {
     pub instance: SrcInstance,
     pub project: Option<SrcProject>,
     pub hooks: Option<Hooks>,
-    pub watch: Vec<WatchScript>,
+    pub watch: Option<Vec<WatchScript>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }

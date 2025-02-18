@@ -15,6 +15,7 @@ use tokio::task::JoinSet;
 
 #[allow(unused_imports)]
 use crate::branding::{BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
+use crate::hint::HintExt;
 use crate::options::Options;
 use crate::portable::project;
 use crate::print::{self, AsRelativeToCurrentDir, Highlight};
@@ -130,10 +131,15 @@ fn assemble_watchers(
 ) -> anyhow::Result<Vec<Arc<Watcher>>> {
     let watch_scripts = &project.manifest.watch;
     if watch_scripts.is_empty() && !cmd.migrate {
-        return Err(anyhow::anyhow!(
-            "[watch.files] table missing in {}",
-            MANIFEST_FILE_DISPLAY_NAME
-        ));
+        return Err(
+            anyhow::anyhow!("Missing [[watch]] entries in {MANIFEST_FILE_DISPLAY_NAME}")
+                .with_hint(|| {
+                    "For auto-apply migrations in dev mode (the old behavior \
+                    of `edgedb watch`) use `--migrate` flag."
+                        .to_string()
+                })
+                .into(),
+        );
     }
 
     let mut watchers = Vec::new();
