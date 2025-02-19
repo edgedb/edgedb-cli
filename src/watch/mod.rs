@@ -1,11 +1,20 @@
 mod fs_watcher;
 mod migrate;
+mod scripts;
 
 pub use fs_watcher::{Event, FsWatcher};
+pub use scripts::run_script;
+
+use std::collections::HashSet;
+use std::iter::FromIterator;
+use std::sync::Arc;
+
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::task::JoinSet;
 
 #[allow(unused_imports)]
 use crate::branding::{BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
-use crate::connect::Connector;
 use crate::options::Options;
 use crate::portable::project;
 use crate::print::{self, AsRelativeToCurrentDir, Highlight};
@@ -20,14 +29,6 @@ pub struct Command {
     #[arg(short = 'm', long)]
     pub migrate: bool,
 
-    /// On failure, retry after a given number of seconds
-    #[arg(short = 'r', long)]
-    pub retry_sec: Option<u16>,
-
-    /// Don't suspend watch during script execution. Might cause loops.
-    #[arg(short = 'c', long)]
-    pub continuous: bool,
-
     #[arg(short = 'v', long)]
     pub verbose: bool,
 }
@@ -35,14 +36,14 @@ pub struct Command {
 #[tokio::main(flavor = "current_thread")]
 pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
     let project = project::ensure_ctx_async(None).await?;
-    let mut ctx = WatchContext {
+    let ctx = Arc::new(Context {
         project,
-        connector: options.create_connector().await?,
-        is_force_database_error: false,
-    };
+        options: options.clone(),
+        cmd: cmd.clone(),
+    });
 
     // determine what we will be watching
-    let mut matchers = assemble_matchers(cmd, &ctx)?;
+    let matchers = assemble_matchers(cmd, &ctx.project)?;
 
     if cmd.migrate {
         print::msg!(
@@ -69,126 +70,41 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
     }
     print::msg!("");
 
-    let mut watcher = fs_watcher::FsWatcher::new()?;
-    // TODO: watch only directories that are needed, not the whole project
+    // spawn tasks that will execute the scripts
+    // these tasks wait for ExecutionOrders to be emitted into `tx`
+    let (tx, join_handle) = start_executors(&matchers, &ctx).await?;
 
-    watcher.watch(&ctx.project.location.root, notify::RecursiveMode::Recursive)?;
-    let schema_dir = ctx.project.manifest.project().get_schema_dir();
-    if cmd.migrate && !schema_dir.starts_with(&ctx.project.location.root) {
-        watcher.watch(
-            &ctx.project.manifest.project().get_schema_dir(),
-            notify::RecursiveMode::Recursive,
-        )?;
+    // watch file system, debounce and match to globs
+    // sends events to executors via tx channel
+    watch_and_match(&matchers, &tx, &ctx).await?;
+
+    // close all tx
+    for t in tx {
+        drop(t);
     }
-
-    loop {
-        let timeout = if let Some(retry_sec) = &cmd.retry_sec {
-            let any_failed = matchers.iter().any(|m| m.last_failed);
-            any_failed.then(|| tokio::time::Duration::from_secs(*retry_sec as u64))
-        } else {
-            None
-        };
-        if let Some(timeout) = timeout {
-            print::warn!("Retrying in {} sec...", timeout.as_secs());
-        }
-
-        if !cmd.continuous {
-            watcher.clear_queue();
-        }
-
-        // wait for changes
-        let event = watcher.wait(timeout).await;
-
-        let changed_paths = match event {
-            Event::Changed(paths) => paths,
-            Event::Retry => Default::default(),
-            Event::Abort => break,
-        };
-        // strip prefix
-        let changed_paths: Vec<_> = changed_paths
-            .iter()
-            .flat_map(|p| p.strip_prefix(&ctx.project.location.root).ok())
-            .map(|p| (p, globset::Candidate::new(p)))
-            .collect();
-
-        // run all matching scripts
-        for matcher in &mut matchers {
-            // does it match?
-            let (is_matched, reason) = if matcher.last_failed {
-                (true, "(retry)".to_string())
-            } else {
-                let matched_paths = changed_paths
-                    .iter()
-                    .filter(|x| matcher.matcher.is_match_candidate(&x.1))
-                    .map(|x| x.0.display().to_string())
-                    .collect::<Vec<_>>();
-                (!matched_paths.is_empty(), matched_paths.join(", "))
-            };
-
-            if !is_matched {
-                continue;
-            }
-
-            // print
-            print::msg!(
-                "{}",
-                format!(
-                    "--- {}: {} ---",
-                    matcher.glob,
-                    matcher.target.to_string().muted()
-                )
-            );
-            if cmd.verbose {
-                print::msg!("{}", format!("  triggered by: {reason}").muted());
-            }
-
-            // run
-            let success = match &matcher.target {
-                Target::Script(script) => {
-                    let status =
-                        crate::hooks::run_script(script, &ctx.project.location.root).await?;
-
-                    if !status.success() {
-                        print::error!("script exited with status {status}");
-                    }
-                    status.success()
-                }
-                Target::MigrateDevMode => {
-                    let res = ctx.migration_apply_dev_mode().await;
-
-                    if let Err(e) = &res {
-                        print::error!("{e}");
-                    }
-                    res.is_ok()
-                }
-            };
-
-            matcher.last_failed = !success;
-        }
-
-        print::msg!(""); // a bit of space between runs
-    }
-
-    if cmd.migrate {
-        ctx.cleanup().await;
-    }
+    // wait for executors to finish
+    join_handle.join_all().await;
 
     Ok(())
 }
 
-struct WatchContext {
+/// Information about the current watch process
+struct Context {
     project: project::Context,
-
-    // things needed for migrate
-    connector: Connector,
-    is_force_database_error: bool,
+    options: Options,
+    cmd: Command,
 }
 
 struct Matcher {
     glob: String,
     matcher: globset::GlobMatcher,
     target: Target,
-    last_failed: bool,
+}
+
+impl Matcher {
+    fn name(&self) -> &str {
+        self.glob.as_str()
+    }
 }
 
 enum Target {
@@ -208,8 +124,11 @@ impl std::fmt::Display for Target {
     }
 }
 
-fn assemble_matchers(cmd: &Command, ctx: &WatchContext) -> anyhow::Result<Vec<Matcher>> {
-    let watch = ctx.project.manifest.watch.as_ref();
+fn assemble_matchers(
+    cmd: &Command,
+    project: &project::Context,
+) -> anyhow::Result<Vec<Arc<Matcher>>> {
+    let watch = project.manifest.watch.as_ref();
     let files = match watch.and_then(|x| x.files.as_ref()) {
         Some(files) => files.clone(),
         None if cmd.migrate => Default::default(),
@@ -225,29 +144,144 @@ fn assemble_matchers(cmd: &Command, ctx: &WatchContext) -> anyhow::Result<Vec<Ma
     for (glob_str, script) in files {
         let glob = globset::Glob::new(&glob_str)?;
 
-        matchers.push(Matcher {
+        matchers.push(Arc::new(Matcher {
             glob: glob_str,
             matcher: glob.compile_matcher(),
             target: Target::Script(script),
-            last_failed: false,
-        });
+        }));
     }
     matchers.sort_by(|a, b| b.glob.cmp(&a.glob));
 
     if cmd.migrate {
-        let schema_dir = ctx.project.manifest.project().get_schema_dir();
+        let schema_dir = project.manifest.project().get_schema_dir();
         let schema_dir = schema_dir
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("bad path: {}", schema_dir.display()))?;
         let glob_str = format!("{schema_dir}/**/*.{{gel,esdl}}");
         let glob = globset::Glob::new(&glob_str)?;
-        matchers.push(Matcher {
+        matchers.push(Arc::new(Matcher {
             glob: glob_str,
             matcher: glob.compile_matcher(),
             target: Target::MigrateDevMode,
-            last_failed: false,
-        });
+        }));
     }
 
     Ok(matchers)
+}
+
+async fn start_executors(
+    matchers: &[Arc<Matcher>],
+    ctx: &Arc<Context>,
+) -> anyhow::Result<(Vec<UnboundedSender<ExecutionOrder>>, JoinSet<()>)> {
+    let mut senders = Vec::with_capacity(matchers.len());
+    let mut join_set = JoinSet::new();
+    for matcher in matchers {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        senders.push(tx);
+
+        match &matcher.target {
+            Target::Script(_) => join_set.spawn(scripts::execute(rx, matcher.clone(), ctx.clone())),
+            Target::MigrateDevMode => {
+                let migrator = migrate::Migrator::new(ctx.clone()).await?;
+
+                join_set.spawn(migrator.run(rx, matcher.clone()))
+            }
+        };
+    }
+    Ok((senders, join_set))
+}
+
+async fn watch_and_match(
+    matchers: &[Arc<Matcher>],
+    tx: &[UnboundedSender<ExecutionOrder>],
+    ctx: &Arc<Context>,
+) -> anyhow::Result<()> {
+    let mut watcher = fs_watcher::FsWatcher::new()?;
+    // TODO: watch only directories that are needed, not the whole project
+
+    watcher.watch(&ctx.project.location.root, notify::RecursiveMode::Recursive)?;
+    let schema_dir = ctx.project.manifest.project().get_schema_dir();
+    if ctx.cmd.migrate && !schema_dir.starts_with(&ctx.project.location.root) {
+        watcher.watch(
+            &ctx.project.manifest.project().get_schema_dir(),
+            notify::RecursiveMode::Recursive,
+        )?;
+    }
+
+    loop {
+        // wait for changes
+        let event = watcher.wait(None).await;
+
+        let changed_paths = match event {
+            Event::Changed(paths) => paths,
+            Event::Retry => Default::default(),
+            Event::Abort => break,
+        };
+        // strip prefix
+        let changed_paths: Vec<_> = changed_paths
+            .iter()
+            .flat_map(|p| p.strip_prefix(&ctx.project.location.root).ok())
+            .map(|p| (p, globset::Candidate::new(p)))
+            .collect();
+
+        // run all matching scripts
+        for (matcher, tx) in std::iter::zip(matchers, tx) {
+            // does it match?
+            let matched_paths = changed_paths
+                .iter()
+                .filter(|x| matcher.matcher.is_match_candidate(&x.1))
+                .map(|x| x.0.display().to_string())
+                .collect::<Vec<_>>();
+            if matched_paths.is_empty() {
+                continue;
+            }
+
+            let order = ExecutionOrder {
+                matched_paths: HashSet::from_iter(matched_paths),
+            };
+            tx.send(order).unwrap();
+        }
+    }
+    Ok(())
+}
+
+struct ExecutionOrder {
+    matched_paths: HashSet<String>,
+}
+
+impl ExecutionOrder {
+    fn merge(&mut self, other: ExecutionOrder) {
+        self.matched_paths.extend(other.matched_paths);
+    }
+
+    async fn recv(input: &mut UnboundedReceiver<ExecutionOrder>) -> Option<ExecutionOrder> {
+        let mut order = input.recv().await?;
+        loop {
+            match input.try_recv() {
+                Ok(o) => order.merge(o),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => return None,
+            }
+        }
+        Some(order)
+    }
+
+    fn print(&self, matcher: &Matcher, ctx: &Context) {
+        // print
+        print::msg!(
+            "{}",
+            format!(
+                "--- {}: {} ---",
+                matcher.name(),
+                matcher.target.to_string().muted()
+            )
+        );
+        if ctx.cmd.verbose {
+            let mut matched_paths: Vec<_> = self.matched_paths.iter().map(|p| p.as_str()).collect();
+            matched_paths.sort();
+            let reason = matched_paths.join(", ");
+
+            print::msg!("{}", format!("  triggered by: {reason}").muted());
+        }
+    }
 }

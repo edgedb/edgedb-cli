@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use const_format::concatcp;
@@ -5,22 +6,62 @@ use const_format::concatcp;
 use edgeql_parser::helpers::quote_string;
 use gel_tokio::Error;
 use indicatif::ProgressBar;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::branding::BRANDING_CLI_CMD;
-use crate::connect::Connection;
+use crate::connect::{Connection, Connector};
 use crate::migrations::{self, dev_mode};
+use crate::print;
 
-impl super::WatchContext {
-    pub async fn migration_apply_dev_mode(&mut self) -> anyhow::Result<()> {
-        let ctx = migrations::Context::for_project(self.project.clone())?;
+use super::{Context, ExecutionOrder, Matcher};
 
+pub struct Migrator {
+    ctx: Arc<Context>,
+    migration_ctx: migrations::Context,
+
+    connector: Connector,
+    is_force_database_error: bool,
+}
+
+impl Migrator {
+    pub async fn new(ctx: Arc<Context>) -> anyhow::Result<Self> {
+        let connector = ctx.options.create_connector().await?;
+        Ok(Migrator {
+            migration_ctx: migrations::Context::for_project(ctx.project.clone())?,
+            ctx,
+            connector,
+            is_force_database_error: false,
+        })
+    }
+
+    pub async fn run(
+        mut self,
+        mut input: UnboundedReceiver<ExecutionOrder>,
+        matcher: Arc<Matcher>,
+    ) {
+        while let Some(order) = ExecutionOrder::recv(&mut input).await {
+            order.print(&matcher, self.ctx.as_ref());
+
+            let res = self.migration_apply_dev_mode().await;
+
+            if let Err(e) = &res {
+                print::error!("{e}");
+                // TODO
+                // matcher.should_retry = true;
+            }
+        }
+
+        self.cleanup().await;
+    }
+
+    async fn migration_apply_dev_mode(&mut self) -> anyhow::Result<()> {
         let bar = ProgressBar::new_spinner();
         bar.enable_steady_tick(Duration::from_millis(100));
         bar.set_message("Connecting");
         let mut cli = self.connector.connect().await?;
 
         let old_state = cli.set_ignore_error_state();
-        let result = dev_mode::migrate(&mut cli, &ctx, &bar).await;
+        let result = dev_mode::migrate(&mut cli, &self.migration_ctx, &bar).await;
         cli.restore_state(old_state);
 
         bar.finish_and_clear();
@@ -41,7 +82,7 @@ impl super::WatchContext {
         Ok(())
     }
 
-    pub async fn cleanup(&mut self) {
+    async fn cleanup(&mut self) {
         if !self.is_force_database_error {
             return;
         }
