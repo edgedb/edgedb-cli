@@ -143,6 +143,10 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
         T::BacktickName => None,
         T::Substitution => Some(S::Decorator),
 
-        t => unreachable!("unexpected token kind: {:?}", t),
+        T::StrInterpStart => Some(S::String),
+        T::StrInterpCont => Some(S::String),
+        T::StrInterpEnd => Some(S::String),
+
+        _ => None,
     }
 }
