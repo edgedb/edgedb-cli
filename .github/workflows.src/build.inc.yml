@@ -27,7 +27,7 @@
       shell: bash
       run: |
         rev=$(git rev-parse HEAD)
-        jq_filter='.packages[] | select(.basename == "edgedb-cli") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | select(. != null) | . as $rev | select($REV | startswith($rev))'
+        jq_filter='.packages[] | select(.basename == "gel-cli") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | select(. != null) | . as $rev | select($REV | startswith($rev))'
 <% for tgt in targets.linux %>
         val=true
 <% if tgt.family == "debian" %>
@@ -112,7 +112,7 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.arch >>"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         EXTRA_OPTIMIZATIONS: "true"
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
@@ -184,7 +184,7 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.arch >>"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
         METAPKG_GIT_CACHE: disabled
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
@@ -241,7 +241,7 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.arch >>"
-        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        PACKAGE: edgedbpkg.edgedbcli:GelCLI
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
 <% endif %>
@@ -449,19 +449,20 @@
               *.zst) \
                 cp -a "${artifact}" "/tmp/" \
                 cd "/tmp/" \
-                zstd -d "${artifact}" -o "edgedb" \
+                zstd -d "${artifact}" -o "gel" \
                 ;; \
               *) \
-                cp -a "${artifact}" "/tmp/edgedb" \
+                cp -a "${artifact}" "/tmp/gel" \
                 ;; \
             esac \
           ) \
-          && chmod +x /tmp/edgedb
+          && chmod +x /tmp/gel
 
         FROM scratch
         COPY --from=download /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-        COPY --from=download /tmp/edgedb /usr/bin/edgedb
-        ENTRYPOINT ["/usr/bin/edgedb"]
+        COPY --from=download /tmp/gel /usr/bin/gel
+        RUN ln -s gel /usr/bin/edgedb
+        ENTRYPOINT ["/usr/bin/gel"]
         EOF
     - env:
         VERSION: "${{ << pub_outputs >>.version }}"
@@ -505,7 +506,7 @@
     - name: Publish Docker Image
       uses: elgohr/Publish-Docker-Github-Action@43dc228e327224b2eda11c8883232afd5b34943b  # v5
       with:
-        name: edgedb/edgedb-cli
+        name: geldata/gel-cli
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         <%- if subdist == "nightly" %>
