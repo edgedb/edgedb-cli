@@ -461,7 +461,7 @@
         FROM scratch
         COPY --from=download /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
         COPY --from=download /tmp/gel /usr/bin/gel
-        RUN ln -s gel /usr/bin/edgedb
+        COPY --from=download /tmp/gel /usr/bin/edgedb
         ENTRYPOINT ["/usr/bin/gel"]
         EOF
     - env:
