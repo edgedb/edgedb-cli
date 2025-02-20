@@ -1137,7 +1137,7 @@ checksum = "ea8a8b81cacc08888170eef4d13b775126db426d0b348bee9d18c2c1eaf123cf"
 
 [[package]]
 name = "gel-cli"
-version = "6.2.0-dev"
+version = "6.2.0-alpha.3"
 dependencies = [
  "anes",
  "ansi-escapes",
