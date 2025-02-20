@@ -15,6 +15,7 @@ use tokio::task::JoinSet;
 
 #[allow(unused_imports)]
 use crate::branding::{BRANDING_CLI_CMD, MANIFEST_FILE_DISPLAY_NAME};
+use crate::hint::HintExt;
 use crate::options::Options;
 use crate::portable::project;
 use crate::print::{self, AsRelativeToCurrentDir, Highlight};
@@ -43,7 +44,7 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
     });
 
     // determine what we will be watching
-    let matchers = assemble_matchers(cmd, &ctx.project)?;
+    let matchers = assemble_watchers(cmd, &ctx.project)?;
 
     if cmd.migrate {
         print::msg!(
@@ -66,7 +67,7 @@ pub async fn run(options: &Options, cmd: &Command) -> anyhow::Result<()> {
     );
     print::msg!("");
     for m in &matchers {
-        print::msg!("  {}: {}", m.glob, m.target.to_string().muted());
+        print::msg!("  {}: {}", m.name, m.target.to_string().muted());
     }
     print::msg!("");
 
@@ -95,15 +96,15 @@ struct Context {
     cmd: Command,
 }
 
-struct Matcher {
-    glob: String,
-    matcher: globset::GlobMatcher,
+struct Watcher {
+    name: String,
+    matchers: Vec<globset::GlobMatcher>,
     target: Target,
 }
 
-impl Matcher {
+impl Watcher {
     fn name(&self) -> &str {
-        self.glob.as_str()
+        self.name.as_str()
     }
 }
 
@@ -124,33 +125,40 @@ impl std::fmt::Display for Target {
     }
 }
 
-fn assemble_matchers(
+fn assemble_watchers(
     cmd: &Command,
     project: &project::Context,
-) -> anyhow::Result<Vec<Arc<Matcher>>> {
-    let watch = project.manifest.watch.as_ref();
-    let files = match watch.and_then(|x| x.files.as_ref()) {
-        Some(files) => files.clone(),
-        None if cmd.migrate => Default::default(),
-        None => {
-            return Err(anyhow::anyhow!(
-                "[watch.files] table missing in {}",
-                MANIFEST_FILE_DISPLAY_NAME
-            ));
-        }
-    };
-
-    let mut matchers = Vec::new();
-    for (glob_str, script) in files {
-        let glob = globset::Glob::new(&glob_str)?;
-
-        matchers.push(Arc::new(Matcher {
-            glob: glob_str,
-            matcher: glob.compile_matcher(),
-            target: Target::Script(script),
-        }));
+) -> anyhow::Result<Vec<Arc<Watcher>>> {
+    let watch_scripts = &project.manifest.watch;
+    if watch_scripts.is_empty() && !cmd.migrate {
+        return Err(
+            anyhow::anyhow!("Missing [[watch]] entries in {MANIFEST_FILE_DISPLAY_NAME}")
+                .with_hint(|| {
+                    "For auto-apply migrations in dev mode (the old behavior \
+                    of `edgedb watch`) use `--migrate` flag."
+                        .to_string()
+                })
+                .into(),
+        );
     }
-    matchers.sort_by(|a, b| b.glob.cmp(&a.glob));
+
+    let mut watchers = Vec::new();
+    for watch_script in watch_scripts {
+        let mut watcher = Watcher {
+            name: watch_script.files.join(","),
+            matchers: Vec::with_capacity(watch_script.files.len()),
+            target: Target::Script(watch_script.script.clone()),
+        };
+
+        for glob in &watch_script.files {
+            let glob = globset::Glob::new(glob)?;
+
+            watcher.matchers.push(glob.compile_matcher());
+        }
+
+        watchers.push(Arc::new(watcher));
+    }
+    watchers.sort_by(|a, b| b.name.cmp(&a.name));
 
     if cmd.migrate {
         let schema_dir = project.manifest.project().get_schema_dir();
@@ -159,18 +167,19 @@ fn assemble_matchers(
             .ok_or_else(|| anyhow::anyhow!("bad path: {}", schema_dir.display()))?;
         let glob_str = format!("{schema_dir}/**/*.{{gel,esdl}}");
         let glob = globset::Glob::new(&glob_str)?;
-        matchers.push(Arc::new(Matcher {
-            glob: glob_str,
-            matcher: glob.compile_matcher(),
+
+        watchers.push(Arc::new(Watcher {
+            name: "--migrate".into(),
+            matchers: vec![glob.compile_matcher()],
             target: Target::MigrateDevMode,
         }));
     }
 
-    Ok(matchers)
+    Ok(watchers)
 }
 
 async fn start_executors(
-    matchers: &[Arc<Matcher>],
+    matchers: &[Arc<Watcher>],
     ctx: &Arc<Context>,
 ) -> anyhow::Result<(Vec<UnboundedSender<ExecutionOrder>>, JoinSet<()>)> {
     let mut senders = Vec::with_capacity(matchers.len());
@@ -192,7 +201,7 @@ async fn start_executors(
 }
 
 async fn watch_and_match(
-    matchers: &[Arc<Matcher>],
+    watchers: &[Arc<Watcher>],
     tx: &[UnboundedSender<ExecutionOrder>],
     ctx: &Arc<Context>,
 ) -> anyhow::Result<()> {
@@ -225,11 +234,11 @@ async fn watch_and_match(
             .collect();
 
         // run all matching scripts
-        for (matcher, tx) in std::iter::zip(matchers, tx) {
+        for (watcher, tx) in std::iter::zip(watchers, tx) {
             // does it match?
             let matched_paths = changed_paths
                 .iter()
-                .filter(|x| matcher.matcher.is_match_candidate(&x.1))
+                .filter(|x| watcher.matchers.iter().any(|m| m.is_match_candidate(&x.1)))
                 .map(|x| x.0.display().to_string())
                 .collect::<Vec<_>>();
             if matched_paths.is_empty() {
@@ -266,7 +275,7 @@ impl ExecutionOrder {
         Some(order)
     }
 
-    fn print(&self, matcher: &Matcher, ctx: &Context) {
+    fn print(&self, matcher: &Watcher, ctx: &Context) {
         // print
         print::msg!(
             "{}",

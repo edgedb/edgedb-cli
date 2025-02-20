@@ -632,7 +632,7 @@ fn init_new(
             },
             project: None,
             hooks: None,
-            watch: None,
+            watch: Vec::new(),
         };
         project::manifest::write(&location.manifest, &manifest)?;
         let ctx = project::Context { location, manifest };
@@ -697,7 +697,7 @@ fn init_new(
                 },
                 project: Default::default(),
                 hooks: None,
-                watch: None,
+                watch: Vec::new(),
             };
             project::manifest::write(&location.manifest, &manifest)?;
             let ctx = project::Context { location, manifest };
@@ -763,7 +763,7 @@ fn init_new(
                 },
                 project: Default::default(),
                 hooks: None,
-                watch: None,
+                watch: Vec::new(),
             };
 
             project::manifest::write(&location.manifest, &manifest)?;

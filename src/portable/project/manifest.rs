@@ -1,6 +1,6 @@
 //# Project manifest
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -21,7 +21,7 @@ pub struct Manifest {
     pub instance: Instance,
     pub project: Option<Project>,
     pub hooks: Option<Hooks>,
-    pub watch: Option<Watch>,
+    pub watch: Vec<WatchScript>,
 }
 
 impl Manifest {
@@ -98,8 +98,9 @@ pub struct Hook {
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-pub struct Watch {
-    pub files: Option<HashMap<String, String>>,
+pub struct WatchScript {
+    pub files: Vec<String>,
+    pub script: String,
 }
 
 #[context("error reading project config `{}`", path.display())]
@@ -128,7 +129,7 @@ pub fn read(path: &Path) -> anyhow::Result<Manifest> {
                 .map(|s| PathBuf::from(s.into_inner())),
         }),
         hooks: val.hooks,
-        watch: val.watch,
+        watch: val.watch.unwrap_or_default(),
     });
 }
 
@@ -249,7 +250,7 @@ pub struct SrcManifest {
     pub instance: SrcInstance,
     pub project: Option<SrcProject>,
     pub hooks: Option<Hooks>,
-    pub watch: Option<Watch>,
+    pub watch: Option<Vec<WatchScript>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }

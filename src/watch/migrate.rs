@@ -13,7 +13,7 @@ use crate::connect::{Connection, Connector};
 use crate::migrations::{self, dev_mode};
 use crate::print;
 
-use super::{Context, ExecutionOrder, Matcher};
+use super::{Context, ExecutionOrder, Watcher};
 
 pub struct Migrator {
     ctx: Arc<Context>,
@@ -37,7 +37,7 @@ impl Migrator {
     pub async fn run(
         mut self,
         mut input: UnboundedReceiver<ExecutionOrder>,
-        matcher: Arc<Matcher>,
+        matcher: Arc<Watcher>,
     ) {
         while let Some(order) = ExecutionOrder::recv(&mut input).await {
             order.print(&matcher, self.ctx.as_ref());
