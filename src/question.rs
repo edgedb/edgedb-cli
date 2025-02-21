@@ -100,6 +100,7 @@ impl<'a> String<'a> {
             initial: None,
         }
     }
+    #[must_use]
     pub fn default<'b: 'a>(mut self, default: &'b str) -> Self {
         self.default = default.into();
         self

@@ -828,9 +828,8 @@ fn ask_name(
         "Specify the name of the ",
         BRANDING,
         " instance to use with this project"
-    ));
-    let default_name_str = default_name.to_string();
-    q.default(&default_name_str);
+    ))
+    .default(&default_name.to_string());
     loop {
         let default_name_clone = default_name.clone();
         let q = question::String::new(concatcp!(
