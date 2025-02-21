@@ -6,10 +6,10 @@ members = [
 ]
 
 [package]
-name = "edgedb-cli"
+name = "gel-cli"
 license = "MIT/Apache-2.0"
 version = "6.2.0-dev"
-authors = ["EdgeDB Inc. <hello@edgedb.com>"]
+authors = ["Gel Data Inc. <yo@geldata.com>"]
 edition = "2018"
 
 [[bin]]
