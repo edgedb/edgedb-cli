@@ -155,40 +155,20 @@ fn _run(cmd: &Command) -> anyhow::Result<()> {
 
     gen_completions::write_completions_home()?;
 
-    if settings.modify_path {
-        #[cfg(windows)]
-        {
-            use std::env::join_paths;
-
-            windows_augment_path(|orig_path| {
-                if orig_path.iter().any(|p| p == &settings.installation_path) {
-                    return None;
-                }
-                Some(
-                    join_paths(
-                        vec![&settings.installation_path]
-                            .into_iter()
-                            .chain(orig_path.iter()),
-                    )
-                    .expect("paths can be joined"),
-                )
-            })?;
+    if settings.modify_path && cfg!(unix) {
+        let line = format!(
+            "\nexport PATH=\"{}:$PATH\"",
+            settings.installation_path.display()
+        );
+        for path in &settings.rc_files {
+            ensure_line(path, &line)
+                .with_context(|| format!("failed to update profile file {path:?}"))?;
         }
-        if cfg!(unix) {
-            let line = format!(
-                "\nexport PATH=\"{}:$PATH\"",
-                settings.installation_path.display()
-            );
-            for path in &settings.rc_files {
-                ensure_line(path, &line)
-                    .with_context(|| format!("failed to update profile file {path:?}"))?;
-            }
-            if let Some(dir) = settings.env_file.parent() {
-                fs::create_dir_all(dir).with_context(|| format!("failed to create {dir:?}"))?;
-            }
-            fs::write(&settings.env_file, line + "\n")
-                .with_context(|| format!("failed to write env file {:?}", settings.env_file))?;
+        if let Some(dir) = settings.env_file.parent() {
+            fs::create_dir_all(dir).with_context(|| format!("failed to create {dir:?}"))?;
         }
+        fs::write(&settings.env_file, line + "\n")
+            .with_context(|| format!("failed to write env file {:?}", settings.env_file))?;
     }
 
     let base = home_dir()?.join(".edgedb");
