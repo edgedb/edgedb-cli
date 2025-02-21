@@ -103,7 +103,8 @@ fn dockerfile() -> String {
         ADD ./edgedb /usr/bin/edgedb
         ADD ./tests /tests
         RUN chown -R user1 /tests/proj
-    "###.to_string()
+    "###
+    .to_string()
 }
 
 #[test_case("portable_smoke")]
